@@ -52,6 +52,16 @@ struct OCRServiceTests {
         #expect(text.contains("\n"))
     }
 
+    @Test @MainActor func recognizesVerticalJapaneseInRightToLeftColumnOrder() async throws {
+        let columns = ["今日は良い天気です", "日本語を縦書きで読む"]
+        let image = try makeVerticalImage(columns: columns)
+        let text = try await OCRService().recognize(image, languagePreference: "en-US, ja-JP")
+        let compact = text.filter { !$0.isWhitespace }
+        let first = try #require(compact.range(of: columns[0]))
+        let second = try #require(compact.range(of: columns[1]))
+        #expect(first.lowerBound < second.lowerBound)
+    }
+
     @Test @MainActor func blankImageProducesNoTextError() async throws {
         let image = try makeImage(lines: [])
         do {
@@ -70,6 +80,27 @@ struct OCRServiceTests {
         } catch OCRError.unsupportedLanguages(let codes) {
             #expect(codes == ["not-a-language"])
         }
+    }
+
+    @MainActor
+    private func makeVerticalImage(columns: [String]) throws -> CGImage {
+        let bitmap = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 500, pixelsHigh: 900, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = context
+        NSColor.white.setFill()
+        NSRect(x: 0, y: 0, width: 500, height: 900).fill()
+        for (column, text) in columns.enumerated() {
+            for (row, character) in text.enumerated() {
+                (String(character) as NSString).draw(at: CGPoint(x: 350 - column * 110, y: 800 - row * 50), withAttributes: [
+                    .font: NSFont.systemFont(ofSize: 40),
+                    .foregroundColor: NSColor.black,
+                ])
+            }
+        }
+        context.flushGraphics()
+        return try #require(bitmap.cgImage)
     }
 
     @MainActor

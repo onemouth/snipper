@@ -44,7 +44,7 @@ struct SettingsView: View {
             Section("MVP behavior") {
                 Text(capture.status)
                     .textSelection(.enabled)
-                Text("Successful OCR copies original text. Screenshots and the last region are not saved. The result panel and translation arrive in later steps.")
+                Text("Successful OCR copies original text and opens a read-only result panel without activating Snipper. Pin keeps its position. Translation arrives in Step 4; no requests are sent yet.")
                     .foregroundStyle(.secondary)
             }
         }

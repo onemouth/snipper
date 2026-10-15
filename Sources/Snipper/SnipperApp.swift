@@ -15,10 +15,11 @@ enum SnipperApp {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let settings = AppSettings()
     private let shortcuts = GlobalShortcuts()
-    private lazy var captureCoordinator = CaptureCoordinator(settings: settings)
+    private let resultPanel = ResultPanelController()
+    private lazy var captureCoordinator = CaptureCoordinator(settings: settings, resultPanel: resultPanel)
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
 
@@ -39,6 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let recapture = NSMenuItem(title: "Recapture Last Region", action: #selector(recaptureRegion), keyEquivalent: "")
         recapture.target = self
         menu.addItem(recapture)
+        let showResult = NSMenuItem(title: "Show Last Result", action: #selector(showLastResult), keyEquivalent: "")
+        showResult.target = self
+        menu.addItem(showResult)
         menu.addItem(.separator())
         let preferences = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
         preferences.target = self
@@ -65,6 +69,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await Task.yield()
             captureCoordinator.perform(.recapture)
         }
+    }
+
+    @objc private func showLastResult() {
+        guard !captureCoordinator.isBusy else { return }
+        resultPanel.showLastResult()
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        if menuItem.action == #selector(showLastResult) {
+            return resultPanel.hasResult && !captureCoordinator.isBusy
+        }
+        return true
     }
 
     @objc private func showSettings() {

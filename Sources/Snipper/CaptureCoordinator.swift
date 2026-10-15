@@ -16,13 +16,17 @@ final class CaptureCoordinator: ObservableObject {
     private(set) var lastRegion: CaptureRegion?
 
     private let settings: AppSettings
+    private let resultPanel: ResultPanelController
     private let selector = RegionSelector()
     private let ocr = OCRService()
     private let toast = StatusToast()
     private var work: Task<Void, Never>?
     private var permissionRequested = false
 
-    init(settings: AppSettings) { self.settings = settings }
+    init(settings: AppSettings, resultPanel: ResultPanelController) {
+        self.settings = settings
+        self.resultPanel = resultPanel
+    }
 
     func perform(_ action: CaptureAction) {
         guard !isBusy else {
@@ -38,12 +42,14 @@ final class CaptureCoordinator: ObservableObject {
         switch action {
         case .selectRegion:
             isBusy = true
+            resultPanel.suspendForCapture()
             status = "Selecting region — Escape cancels."
             selector.begin { [weak self] region in
                 guard let self else { return }
                 guard let region else {
                     self.isBusy = false
                     self.status = "Selection cancelled. Clipboard unchanged."
+                    self.resultPanel.restoreAfterCancelledOrFailedCapture()
                     return
                 }
                 self.lastRegion = region
@@ -60,6 +66,7 @@ final class CaptureCoordinator: ObservableObject {
                 return
             }
             isBusy = true
+            resultPanel.suspendForCapture()
             capture(lastRegion)
         }
     }
@@ -69,6 +76,7 @@ final class CaptureCoordinator: ObservableObject {
         work = nil
         selector.cancel()
         toast.hide()
+        resultPanel.stop()
         lastResult = nil
         lastRegion = nil
     }
@@ -105,7 +113,11 @@ final class CaptureCoordinator: ObservableObject {
         let languages = settings.recognitionLanguages
         work = Task { [weak self] in
             guard let self else { return }
-            defer { self.isBusy = false; self.work = nil }
+            defer {
+                self.isBusy = false
+                self.work = nil
+                self.resultPanel.restoreAfterCancelledOrFailedCapture()
+            }
             do {
                 // Let hidden overlays/toasts leave the compositor before capture.
                 try await Task.sleep(for: .milliseconds(150))
@@ -127,15 +139,15 @@ final class CaptureCoordinator: ObservableObject {
                 self.status = "Recognizing text locally…"
                 let text = try await self.ocr.recognize(image, languagePreference: languages)
                 try Task.checkCancellation()
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                guard pasteboard.setString(text, forType: .string) else {
-                    self.report("Clipboard failed", detail: "Text was recognized, but could not be copied. Try again.")
+                let result = CaptureResult(text: text, region: region)
+                let copied = ClipboardWriter.write(text)
+                self.lastResult = result
+                self.resultPanel.present(result, copiedAutomatically: copied)
+                guard copied else {
+                    self.report("Clipboard failed", detail: "Text is available in the panel. Use Copy Original to try again.")
                     return
                 }
-                self.lastResult = CaptureResult(text: text, region: region)
                 self.status = "Original text copied (\(text.count) characters)."
-                self.toast.show("✓ Original text copied", detail: "\(text.count) characters · Paste to check the result")
             } catch is CancellationError {
                 // Stop/quit never publishes a late result or writes the clipboard.
             } catch let error as OCRError {

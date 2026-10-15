@@ -20,28 +20,35 @@ enum OCRError: LocalizedError {
 
 /// Vision work runs on this actor, not the UI thread.
 actor OCRService {
-    func recognize(_ image: CGImage, languagePreference: String) throws -> String {
+    func recognize(_ image: CGImage, languagePreference: String) async throws -> String {
         try Task.checkCancellation()
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.usesLanguageCorrection = true
-        request.automaticallyDetectsLanguage = true
-        let supported: [String]
-        do { supported = try request.supportedRecognitionLanguages() }
-        catch { throw OCRError.recognitionFailed }
+        // The legacy VNRecognizeTextRequest missed vertical Japanese entirely in
+        // our page fixture. macOS 26 document recognition handles that layout and
+        // supplies a reading-order transcript instead of isolated text fragments.
+        var request = RecognizeDocumentsRequest()
+        request.textRecognitionOptions.useLanguageCorrection = true
+        request.textRecognitionOptions.automaticallyDetectLanguage = true
+        request.barcodeDetectionOptions.enabled = false
         let preferred = Self.parseLanguages(languagePreference)
-        let unsupported = preferred.filter { !supported.contains($0) }
+        let supported = Set(request.supportedRecognitionLanguages.map(\.maximalIdentifier))
+        let unsupported = preferred.filter {
+            !supported.contains(Locale.Language(identifier: $0).maximalIdentifier)
+        }
         guard unsupported.isEmpty else { throw OCRError.unsupportedLanguages(unsupported) }
         // Blank preference lets Vision choose its default recognition languages.
-        if !preferred.isEmpty { request.recognitionLanguages = preferred }
+        if !preferred.isEmpty {
+            request.textRecognitionOptions.recognitionLanguages = preferred.map { Locale.Language(identifier: $0) }
+        }
+        let documents: [DocumentObservation]
         do {
-            try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+            documents = try await request.perform(on: image)
         } catch {
+            try Task.checkCancellation()
             throw OCRError.recognitionFailed
         }
         try Task.checkCancellation()
-        // Keep Vision's reading order and line boundaries, not screen typography.
-        let text = Self.joinLines((request.results ?? []).compactMap { $0.topCandidates(1).first?.string })
+        // Keep document reading order, including right-to-left vertical columns.
+        let text = Self.joinLines(documents.map { $0.document.text.transcript })
         guard !text.isEmpty else { throw OCRError.noText }
         return text
     }
