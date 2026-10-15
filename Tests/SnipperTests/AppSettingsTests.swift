@@ -18,6 +18,8 @@ struct AppSettingsTests {
             #expect(settings.targetLanguage == .traditionalChinese)
             #expect(settings.recognitionLanguages == "en-US, ja-JP")
             #expect(settings.model.isEmpty)
+            #expect(settings.captureShortcut == ShortcutConfiguration(modifiers: ShortcutModifiers.commandShift.rawValue, key: "2"))
+            #expect(settings.recaptureShortcut == ShortcutConfiguration(modifiers: ShortcutModifiers.commandShift.rawValue, key: "1"))
             #expect(settings.shortcutWarning == nil)
         }
     }
@@ -30,12 +32,14 @@ struct AppSettingsTests {
             settings.model = "example/model"
             settings.recognitionLanguages = "ja-JP"
             settings.captureShortcut.key = "a"
+            settings.captureShortcut.modifiers = ShortcutModifiers.commandOption.rawValue
             let restored = AppSettings(defaults: defaults)
             #expect(!restored.automaticTranslation)
             #expect(restored.targetLanguage == .japanese)
             #expect(restored.model == "example/model")
             #expect(restored.recognitionLanguages == "ja-JP")
             #expect(restored.captureShortcut.key == "a")
+            #expect(restored.captureShortcut.modifiers == ShortcutModifiers.commandOption.rawValue)
         }
     }
 

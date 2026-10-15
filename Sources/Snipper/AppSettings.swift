@@ -52,8 +52,8 @@ final class AppSettings: ObservableObject {
         targetLanguage = defaults.string(forKey: "targetLanguage").flatMap(TargetLanguage.init(rawValue:)) ?? .traditionalChinese
         model = defaults.string(forKey: "model") ?? ""
         recognitionLanguages = defaults.string(forKey: "recognitionLanguages") ?? "en-US, ja-JP"
-        captureShortcut = Self.loadShortcut(defaults, key: "captureShortcut", fallbackKey: "2")
-        recaptureShortcut = Self.loadShortcut(defaults, key: "recaptureShortcut", fallbackKey: "3")
+        captureShortcut = Self.loadShortcut(defaults, key: "captureShortcut", fallbackKey: "2", fallbackModifiers: .commandShift)
+        recaptureShortcut = Self.loadShortcut(defaults, key: "recaptureShortcut", fallbackKey: "1", fallbackModifiers: .commandShift)
     }
 
     var shortcutWarning: String? {
@@ -71,11 +71,11 @@ final class AppSettings: ObservableObject {
         defaults.set(data, forKey: key)
     }
 
-    private static func loadShortcut(_ defaults: UserDefaults, key: String, fallbackKey: String) -> ShortcutConfiguration {
+    private static func loadShortcut(_ defaults: UserDefaults, key: String, fallbackKey: String, fallbackModifiers: ShortcutModifiers) -> ShortcutConfiguration {
         if let data = defaults.data(forKey: key),
            let shortcut = try? JSONDecoder().decode(ShortcutConfiguration.self, from: data) {
             return shortcut
         }
-        return ShortcutConfiguration(modifiers: ShortcutModifiers.controlOption.rawValue, key: fallbackKey)
+        return ShortcutConfiguration(modifiers: fallbackModifiers.rawValue, key: fallbackKey)
     }
 }

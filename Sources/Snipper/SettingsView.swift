@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject var shortcutTester: ShortcutTester
     @State private var apiKey = ""
     @State private var keyStatus = "Key has not been checked."
     private let keychain = KeychainStore()
@@ -25,7 +26,13 @@ struct SettingsView: View {
                 if let warning = settings.shortcutWarning {
                     Text(warning).foregroundStyle(.red)
                 }
-                Text("Preferences only in this foundation build. Global shortcut registration arrives with capture.")
+                Text(shortcutTester.registrationStatus)
+                    .font(.caption)
+                    .foregroundStyle(shortcutTester.isRegistered ? Color.secondary : Color.red)
+                Text(shortcutTester.lastReceived)
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("Retry Shortcut Registration") { shortcutTester.register(settings) }
+                Text("Press either shortcut for a confirmation toast. No screenshot is taken. Keys use physical ANSI keyboard positions.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Local OCR") {
@@ -87,6 +94,9 @@ struct SettingsView: View {
             .labelsHidden()
             .frame(width: 175)
             TextField("Key", text: shortcut.key)
+                .labelsHidden()
+                .accessibilityLabel("\(title) key")
+                .multilineTextAlignment(.center)
                 .frame(width: 40)
                 .onChange(of: shortcut.wrappedValue.key) { _, newValue in
                     shortcut.wrappedValue.key = newValue.lowercased()

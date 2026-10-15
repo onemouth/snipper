@@ -2,7 +2,10 @@
 
 Personal macOS 26 menu-bar OCR + translation app.
 
-## Current milestone: foundation only
+## Step 1: foundation — complete
+
+Verified: four preference tests pass, release app builds, and the user confirmed
+shortcut confirmation feedback works. Steps 2–5 have not started.
 
 Implemented:
 - Native AppKit menu bar and SwiftUI settings.
@@ -11,7 +14,12 @@ Implemented:
 - Save/check/delete the OpenRouter API key using macOS Keychain.
 - Local app-bundle packaging, with no third-party dependencies.
 
-Not implemented yet: shortcut registration, screenshot capture, OCR, result panel,
+Global shortcuts are registered for a foundation smoke test: pressing either shows
+an on-screen confirmation without taking screenshots or activating Snipper. Settings
+shows registration status and the last received action. No Accessibility or Input
+Monitoring permission is needed. Actual capture remains unimplemented.
+
+Not implemented yet: screenshot capture, OCR, result panel,
 translation requests, or translation cache. The capture menu entry is intentionally
 disabled. No screen-recording permission is requested by this build.
 
@@ -36,9 +44,13 @@ Do not run multiple copies simultaneously.
 
 ## Settings
 
-Default shortcut preferences: Control–Option–2 (capture), Control–Option–3
-(recapture). These are not registered until the capture milestone. Conflicts with
-other applications will need handling when registration is implemented.
+Default shortcut preferences: Shift–Command–2 (capture), Shift–Command–1
+(recapture). Press them to test the confirmation toast. If another app (such as
+TextSniper) owns a shortcut, settings reports the conflict and disables both
+shortcuts. Quit the conflicting app or change the shortcuts, then click Retry.
+Changing preferences automatically re-registers after a short delay. Saved custom
+shortcuts are preserved. Letter/digit keys currently use physical ANSI positions,
+not layout-translated characters.
 
 OCR language priority defaults to `en-US, ja-JP`. Actual supported languages and
 validation will come from Vision in the OCR milestone.

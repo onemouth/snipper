@@ -17,6 +17,7 @@ enum SnipperApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
+    private let shortcutTester = ShortcutTester()
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
 
@@ -44,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quit)
         item.menu = menu
         statusItem = item
+        shortcutTester.start(settings: settings)
     }
 
     @objc private func showSettings() {
@@ -56,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             window.title = "Snipper Settings"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(settings: settings))
+            window.contentView = NSHostingView(rootView: SettingsView(settings: settings, shortcutTester: shortcutTester))
             window.center()
             settingsWindow = window
         }
@@ -66,6 +68,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        shortcutTester.stop()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
