@@ -17,7 +17,8 @@ enum SnipperApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
-    private let shortcutTester = ShortcutTester()
+    private let shortcuts = GlobalShortcuts()
+    private lazy var captureCoordinator = CaptureCoordinator(settings: settings)
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
 
@@ -29,12 +30,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.toolTip = "Snipper — OCR + Translation"
         }
         let menu = NSMenu()
-        let title = NSMenuItem(title: "Snipper — Foundation", action: nil, keyEquivalent: "")
+        let title = NSMenuItem(title: "Snipper — Local OCR", action: nil, keyEquivalent: "")
         title.isEnabled = false
         menu.addItem(title)
-        let capture = NSMenuItem(title: "Capture Region (coming next)", action: nil, keyEquivalent: "")
-        capture.isEnabled = false
+        let capture = NSMenuItem(title: "Capture Region", action: #selector(captureRegion), keyEquivalent: "")
+        capture.target = self
         menu.addItem(capture)
+        let recapture = NSMenuItem(title: "Recapture Last Region", action: #selector(recaptureRegion), keyEquivalent: "")
+        recapture.target = self
+        menu.addItem(recapture)
         menu.addItem(.separator())
         let preferences = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
         preferences.target = self
@@ -45,7 +49,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quit)
         item.menu = menu
         statusItem = item
-        shortcutTester.start(settings: settings)
+        shortcuts.onAction = { [weak self] action in self?.captureCoordinator.perform(action) }
+        shortcuts.start(settings: settings)
+    }
+
+    @objc private func captureRegion() {
+        Task { @MainActor in
+            await Task.yield()
+            captureCoordinator.perform(.selectRegion)
+        }
+    }
+
+    @objc private func recaptureRegion() {
+        Task { @MainActor in
+            await Task.yield()
+            captureCoordinator.perform(.recapture)
+        }
     }
 
     @objc private func showSettings() {
@@ -58,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             window.title = "Snipper Settings"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(settings: settings, shortcutTester: shortcutTester))
+            window.contentView = NSHostingView(rootView: SettingsView(settings: settings, shortcuts: shortcuts, capture: captureCoordinator))
             window.center()
             settingsWindow = window
         }
@@ -71,7 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        shortcutTester.stop()
+        shortcuts.stop()
+        captureCoordinator.stop()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

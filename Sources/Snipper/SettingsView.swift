@@ -2,7 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
-    @ObservedObject var shortcutTester: ShortcutTester
+    @ObservedObject var shortcuts: GlobalShortcuts
+    @ObservedObject var capture: CaptureCoordinator
     @State private var apiKey = ""
     @State private var keyStatus = "Key has not been checked."
     private let keychain = KeychainStore()
@@ -26,23 +27,24 @@ struct SettingsView: View {
                 if let warning = settings.shortcutWarning {
                     Text(warning).foregroundStyle(.red)
                 }
-                Text(shortcutTester.registrationStatus)
+                Text(shortcuts.registrationStatus)
                     .font(.caption)
-                    .foregroundStyle(shortcutTester.isRegistered ? Color.secondary : Color.red)
-                Text(shortcutTester.lastReceived)
+                    .foregroundStyle(shortcuts.isRegistered ? Color.secondary : Color.red)
+                Text(shortcuts.lastReceived)
                     .font(.caption).foregroundStyle(.secondary)
-                Button("Retry Shortcut Registration") { shortcutTester.register(settings) }
-                Text("Press either shortcut for a confirmation toast. No screenshot is taken. Keys use physical ANSI keyboard positions.")
+                Button("Retry Shortcut Registration") { shortcuts.register(settings) }
+                Text("Capture selects a rectangle; recapture reuses your last selection. Keys use physical ANSI keyboard positions.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Local OCR") {
                 TextField("Recognition language codes", text: $settings.recognitionLanguages)
-                Text("Priority languages: en-US, ja-JP. Other Vision-supported languages can be configured. Recognition is not limited to English or Japanese.")
+                Text("Priority: en-US, ja-JP. Enter comma-separated Vision language codes, or leave blank for defaults. Automatic language detection is enabled; unsupported codes produce an OCR error.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("MVP behavior") {
-                Text("Original text is always copied and shown in a read-only panel. Translation never replaces your clipboard automatically.")
-                Text("Capture, OCR, and the result panel are not implemented yet.")
+                Text(capture.status)
+                    .textSelection(.enabled)
+                Text("Successful OCR copies original text. Screenshots and the last region are not saved. The result panel and translation arrive in later steps.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -75,7 +77,7 @@ struct SettingsView: View {
             Section("Privacy") {
                 Text("OCR runs locally. When you request translation, only recognized text will be sent to OpenRouter and its selected model provider—not screenshots. Provider data policies apply.")
                 Text("API keys stay in macOS Keychain. No persistent capture history or text logging; translation cache will be memory-only.")
-                Text("This foundation build makes no translation requests.")
+                Text("Translation is not implemented yet. These preferences do not send any requests.")
                     .foregroundStyle(.secondary)
             }
         }

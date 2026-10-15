@@ -2,9 +2,12 @@ import AppKit
 import Carbon
 import Combine
 
-/// Foundation smoke test only: receives global shortcuts without capturing content.
+enum CaptureAction { case selectRegion, recapture }
+
+/// Permission-free Carbon hotkeys; actual work is owned by CaptureCoordinator.
 @MainActor
-final class ShortcutTester: ObservableObject {
+final class GlobalShortcuts: ObservableObject {
+    var onAction: ((CaptureAction) -> Void)?
     @Published private(set) var registrationStatus = "Shortcuts not registered."
     @Published private(set) var lastReceived = "No shortcut received yet."
     @Published private(set) var isRegistered = false
@@ -13,8 +16,6 @@ final class ShortcutTester: ObservableObject {
     private var handler: EventHandlerRef?
     private var hotKeys: [EventHotKeyRef] = []
     private var subscription: AnyCancellable?
-    private var toast: NSPanel?
-    private var dismissal: Task<Void, Never>?
     private var receivedCount = 0
 
     func start(settings: AppSettings) {
@@ -28,7 +29,7 @@ final class ShortcutTester: ObservableObject {
             }
             // The application event target dispatches on the main thread.
             return MainActor.assumeIsolated {
-                let tester = Unmanaged<ShortcutTester>.fromOpaque(context).takeUnretainedValue()
+                let tester = Unmanaged<GlobalShortcuts>.fromOpaque(context).takeUnretainedValue()
                 tester.receive(identifier.id)
                 return noErr
             }
@@ -76,7 +77,7 @@ final class ShortcutTester: ObservableObject {
             hotKeys.append(reference)
         }
         isRegistered = true
-        registrationStatus = "Both shortcuts enabled — test mode (no capture)."
+        registrationStatus = "Both shortcuts enabled."
     }
 
     func stop() {
@@ -85,8 +86,7 @@ final class ShortcutTester: ObservableObject {
         unregister()
         if let handler { RemoveEventHandler(handler) }
         handler = nil
-        dismissal?.cancel()
-        toast?.orderOut(nil)
+        onAction = nil
     }
 
     private func unregister() {
@@ -99,50 +99,8 @@ final class ShortcutTester: ObservableObject {
         guard isRegistered, id == 1 || id == 2 else { return }
         receivedCount += 1
         let message = id == 1 ? "Capture shortcut received" : "Recapture shortcut received"
-        lastReceived = "\(message) · test #\(receivedCount)"
-        showToast(message)
-    }
-
-    private func showToast(_ message: String) {
-        dismissal?.cancel()
-        if toast == nil {
-            let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 88), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-            panel.level = .floating
-            panel.isOpaque = false
-            panel.backgroundColor = .clear
-            panel.hasShadow = true
-            panel.ignoresMouseEvents = true
-            panel.hidesOnDeactivate = false
-            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            let background = NSVisualEffectView(frame: panel.contentRect(forFrameRect: panel.frame))
-            background.material = .hudWindow
-            background.state = .active
-            background.wantsLayer = true
-            background.layer?.cornerRadius = 14
-            background.layer?.masksToBounds = true
-            let label = NSTextField(wrappingLabelWithString: "")
-            label.identifier = NSUserInterfaceItemIdentifier("message")
-            label.alignment = .center
-            label.font = .systemFont(ofSize: 15, weight: .medium)
-            label.frame = NSRect(x: 12, y: 14, width: 336, height: 60)
-            background.addSubview(label)
-            panel.contentView = background
-            toast = panel
-        }
-        guard let toast else { return }
-        if let label = toast.contentView?.subviews.first as? NSTextField {
-            label.stringValue = "✓ \(message)\nTest only — no screenshot taken"
-        }
-        let mouse = NSEvent.mouseLocation
-        if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main {
-            let frame = screen.visibleFrame
-            toast.setFrameOrigin(NSPoint(x: frame.midX - toast.frame.width / 2, y: frame.maxY - toast.frame.height - 28))
-        }
-        toast.orderFrontRegardless()
-        dismissal = Task { [weak self] in
-            do { try await Task.sleep(for: .seconds(2)) } catch { return }
-            self?.toast?.orderOut(nil)
-        }
+        lastReceived = "\(message) · #\(receivedCount)"
+        onAction?(id == 1 ? .selectRegion : .recapture)
     }
 
     private static func carbonModifiers(_ modifiers: ShortcutModifiers) -> UInt32 {
