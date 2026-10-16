@@ -15,6 +15,7 @@ struct AppSettingsTests {
         withDefaults { defaults in
             let settings = AppSettings(defaults: defaults)
             #expect(settings.automaticTranslation)
+            #expect(!settings.cloudTranslationConsent)
             #expect(settings.targetLanguage == .traditionalChinese)
             #expect(settings.recognitionLanguages == "en-US, ja-JP")
             #expect(settings.model.isEmpty)
@@ -28,6 +29,7 @@ struct AppSettingsTests {
         withDefaults { defaults in
             let settings = AppSettings(defaults: defaults)
             settings.automaticTranslation = false
+            settings.cloudTranslationConsent = true
             settings.targetLanguage = .japanese
             settings.model = "example/model"
             settings.recognitionLanguages = "ja-JP"
@@ -35,11 +37,22 @@ struct AppSettingsTests {
             settings.captureShortcut.modifiers = ShortcutModifiers.commandOption.rawValue
             let restored = AppSettings(defaults: defaults)
             #expect(!restored.automaticTranslation)
+            #expect(restored.cloudTranslationConsent)
             #expect(restored.targetLanguage == .japanese)
             #expect(restored.model == "example/model")
             #expect(restored.recognitionLanguages == "ja-JP")
             #expect(restored.captureShortcut.key == "a")
             #expect(restored.captureShortcut.modifiers == ShortcutModifiers.commandOption.rawValue)
+        }
+    }
+
+    @Test func credentialRevisionIsEphemeral() {
+        withDefaults { defaults in
+            let settings = AppSettings(defaults: defaults)
+            let before = settings.credentialsVersion
+            settings.credentialsDidChange()
+            #expect(before != settings.credentialsVersion)
+            #expect(defaults.object(forKey: "credentialsVersion") == nil)
         }
     }
 

@@ -4,6 +4,7 @@ struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var shortcuts: GlobalShortcuts
     @ObservedObject var capture: CaptureCoordinator
+    @ObservedObject var translator: TranslationCoordinator
     @State private var apiKey = ""
     @State private var keyStatus = "Key has not been checked."
     @State private var confirmConnectionTest = false
@@ -54,7 +55,7 @@ struct SettingsView: View {
             Section("MVP behavior") {
                 Text(capture.status)
                     .textSelection(.enabled)
-                Text("Successful OCR copies original text and opens a read-only result panel without activating Snipper. Pin keeps its position. Captured-text translation arrives later in Step 4. Only Test Connection sends a fixed sample when explicitly confirmed.")
+                Text("Successful OCR copies original text and opens a read-only result panel without activating Snipper. Pin keeps its position. Cloud translation is optional. Original text remains useful if translation fails and translation is copied only on explicit request.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -64,6 +65,9 @@ struct SettingsView: View {
     private var translation: some View {
         Form {
             Section("OpenRouter") {
+                Toggle("Allow cloud translation", isOn: $settings.cloudTranslationConsent)
+                Text("When allowed, automatic captures or the panel’s Translate button send OCR text to OpenRouter and its model provider. Screenshots are never sent. API charges and provider data policies apply.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Translate automatically after capture", isOn: $settings.automaticTranslation)
                 Picker("Target language", selection: $settings.targetLanguage) {
                     ForEach(TargetLanguage.allCases) { language in
@@ -107,8 +111,12 @@ struct SettingsView: View {
             }
             Section("Privacy") {
                 Text("OCR runs locally. When you request translation, only recognized text will be sent to OpenRouter and its selected model provider—not screenshots. Provider data policies apply.")
-                Text("API keys stay in macOS Keychain. No persistent capture history or text logging; translation cache will be memory-only.")
-                Text("Captured-text translation is not implemented yet. Only Test Connection sends a fixed sample to OpenRouter and its selected model provider after your confirmation.")
+                Text("API keys stay in macOS Keychain. No persistent capture history or text logging; translation cache is memory-only and clears on quit.")
+                Button("Clear Translation Cache") { translator.clearCache() }
+                Text("The built-in translation prompt preserves meaning and treats captured content as text, never as instructions. Target changes clear stale translations; click Translate to translate an existing result.")
+                    .foregroundStyle(.secondary)
+                Text("30-second timeout. Translation retries HTTP 429/502/503/529 once; timeouts are not retried. Cancellation or errors may still incur provider charges.")
+                    .font(.caption).foregroundStyle(.secondary)
                     .foregroundStyle(.secondary)
             }
         }
@@ -143,6 +151,7 @@ struct SettingsView: View {
             try keychain.save(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
             apiKey = ""
             keyStatus = "API key saved in Keychain."
+            settings.credentialsDidChange()
         } catch {
             keyStatus = error.localizedDescription
         }
@@ -162,6 +171,7 @@ struct SettingsView: View {
             try keychain.delete()
             apiKey = ""
             keyStatus = "API key removed."
+            settings.credentialsDidChange()
         } catch {
             keyStatus = error.localizedDescription
         }

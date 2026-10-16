@@ -8,6 +8,8 @@ struct ResultPanelState {
     var hasResult: Bool { !original.isEmpty }
     var canCopyTranslation: Bool { translation.map { !$0.isEmpty } ?? false }
 
+    mutating func applyTranslation(_ text: String?) { translation = text }
+
     mutating func presentOriginal(_ text: String) {
         original = text
         // Never let a new capture display an old translation.

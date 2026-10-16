@@ -4,7 +4,7 @@ import Testing
 
 struct PanelPlacementTests {
     private let screen = CGRect(x: 0, y: 0, width: 1440, height: 875)
-    private let panelSize = CGSize(width: 440, height: 488)
+    private let panelSize = CGSize(width: 460, height: 548)
 
     @Test func usesRightSideWhenRoomExists() {
         let source = CGRect(x: 200, y: 250, width: 300, height: 200)
@@ -59,6 +59,17 @@ struct ResultPanelStateTests {
         #expect(!state.hasResult)
         #expect(!state.canCopyTranslation)
         #expect(!state.isPinned)
+    }
+
+    @Test func translationUpdatesNeverReplaceOriginal() {
+        var state = ResultPanelState()
+        state.presentOriginal("Original\n日本語")
+        state.applyTranslation("翻譯")
+        #expect(state.original == "Original\n日本語")
+        #expect(state.canCopyTranslation)
+        state.applyTranslation(nil)
+        #expect(!state.canCopyTranslation)
+        #expect(state.original == "Original\n日本語")
     }
 
     @Test func captureReplacesOriginalAndClearsStaleTranslationWithoutUnpinning() {

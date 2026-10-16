@@ -18,7 +18,8 @@ enum SnipperApp {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let settings = AppSettings()
     private let shortcuts = GlobalShortcuts()
-    private let resultPanel = ResultPanelController()
+    private lazy var translator = TranslationCoordinator(settings: settings)
+    private lazy var resultPanel = ResultPanelController(settings: settings, translator: translator)
     private lazy var captureCoordinator = CaptureCoordinator(settings: settings, resultPanel: resultPanel)
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
@@ -93,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             )
             window.title = "Snipper Settings"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(settings: settings, shortcuts: shortcuts, capture: captureCoordinator))
+            window.contentView = NSHostingView(rootView: SettingsView(settings: settings, shortcuts: shortcuts, capture: captureCoordinator, translator: translator))
             window.center()
             settingsWindow = window
         }

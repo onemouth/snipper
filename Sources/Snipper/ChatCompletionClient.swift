@@ -1,11 +1,12 @@
 import Foundation
 
 enum ChatCompletionError: Error, LocalizedError, Equatable {
-    case missingModel, missingKey, invalidKey, keychainUnavailable
+    case missingModel, missingKey, invalidKey, keychainUnavailable, invalidEndpoint
     case httpStatus(Int), invalidResponse, emptyResponse, outputLimit, timeout, network
 
     var errorDescription: String? {
         switch self {
+        case .invalidEndpoint: "The provider endpoint must be an HTTPS base URL without credentials, a query, or a fragment."
         case .missingModel: "Enter an OpenRouter model ID first."
         case .missingKey: "No saved API key. Save your key in Keychain first."
         case .invalidKey: "The saved API key contains invalid characters. Save a valid key."
@@ -16,16 +17,16 @@ enum ChatCompletionError: Error, LocalizedError, Equatable {
             case 401: "Authentication failed (HTTP 401). Check the saved API key."
             case 402: "Insufficient credits or quota (HTTP 402). Check your OpenRouter balance and key limits."
             case 403: "Access denied (HTTP 403). Check key permissions, model access, or provider policy."
-            case 408, 504, 524: "The provider timed out (HTTP \(code)). No automatic retry was made."
-            case 429: "Rate limited (HTTP 429). Wait before testing again."
+            case 408, 504, 524: "The provider timed out (HTTP \(code))."
+            case 429: "Rate limited (HTTP 429). Wait before trying again."
             case 500...599: "OpenRouter or its provider is unavailable (HTTP \(code)). Try again later."
             case 300...399: "The endpoint attempted a redirect. It was blocked to protect the API key."
-            default: "OpenRouter request failed (HTTP \(code)). No automatic retry was made."
+            default: "OpenRouter request failed (HTTP \(code))."
             }
         case .invalidResponse: "The server did not return a valid chat-completion response."
-        case .emptyResponse: "The model returned no visible text. A reasoning model may have exhausted this small test's output budget."
-        case .outputLimit: "The model reached the test's output limit. Choose a model that can answer this small sample without lengthy reasoning."
-        case .timeout: "The connection test timed out after 30 seconds. No automatic retry was made."
+        case .emptyResponse: "The model returned no visible text. A reasoning model may have exhausted the output budget."
+        case .outputLimit: "The model reached the output limit. Try a smaller capture or a model without lengthy reasoning."
+        case .timeout: "The request timed out after 30 seconds."
         case .network: "Could not reach OpenRouter securely. Check your network connection and try again."
         }
     }
@@ -47,13 +48,15 @@ struct ChatCompletionClient: Sendable {
 
     typealias Transport = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
     private let transport: Transport
+    let baseURL: URL
 
-    init(transport: @escaping Transport = ChatCompletionClient.liveTransport) {
+    init(baseURL: URL = AppSettings.openRouterBaseURL, transport: @escaping Transport = ChatCompletionClient.liveTransport) {
+        self.baseURL = baseURL
         self.transport = transport
     }
 
     func complete(model: String, apiKey: String, messages: [Message], maxCompletionTokens: Int) async throws -> String {
-        let request = try Self.makeRequest(model: model, apiKey: apiKey, messages: messages, maxCompletionTokens: maxCompletionTokens)
+        let request = try Self.makeRequest(model: model, apiKey: apiKey, messages: messages, maxCompletionTokens: maxCompletionTokens, baseURL: baseURL)
         try Task.checkCancellation()
         let data: Data
         let response: HTTPURLResponse
@@ -85,13 +88,15 @@ struct ChatCompletionClient: Sendable {
         return text
     }
 
-    static func makeRequest(model: String, apiKey: String, messages: [Message], maxCompletionTokens: Int) throws -> URLRequest {
+    static func makeRequest(model: String, apiKey: String, messages: [Message], maxCompletionTokens: Int, baseURL: URL = AppSettings.openRouterBaseURL) throws -> URLRequest {
         let model = model.trimmingCharacters(in: .whitespacesAndNewlines)
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !model.isEmpty else { throw ChatCompletionError.missingModel }
         guard !key.isEmpty else { throw ChatCompletionError.missingKey }
         guard key.unicodeScalars.allSatisfy({ (0x21...0x7E).contains($0.value) }) else { throw ChatCompletionError.invalidKey }
-        var request = URLRequest(url: AppSettings.openRouterBaseURL.appendingPathComponent("chat/completions"), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+        guard baseURL.scheme == "https", baseURL.host != nil, baseURL.user == nil, baseURL.password == nil,
+              baseURL.query == nil, baseURL.fragment == nil else { throw ChatCompletionError.invalidEndpoint }
+        var request = URLRequest(url: baseURL.appendingPathComponent("chat/completions"), cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
         request.httpMethod = "POST"
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

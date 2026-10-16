@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 @MainActor
 private final class ResultPanel: NSPanel {
@@ -27,7 +28,22 @@ private final class ResultTextView: NSTextView {
 
 @MainActor
 final class ResultPanelController: NSObject, NSWindowDelegate {
+    private let settings: AppSettings
+    private let translator: TranslationCoordinator
+    private var translationSubscription: AnyCancellable?
+    private var translateButton: NSButton?
+    private var cancelTranslationButton: NSButton?
+    private var targetPopup: NSPopUpButton?
     private(set) var state = ResultPanelState()
+
+    init(settings: AppSettings, translator: TranslationCoordinator) {
+        self.settings = settings
+        self.translator = translator
+        super.init()
+        translationSubscription = translator.$state.sink { [weak self] value in
+            MainActor.assumeIsolated { self?.renderTranslation(value) }
+        }
+    }
     private var panel: ResultPanel?
     private var originalView: NSTextView?
     private var translationView: NSTextView?
@@ -41,6 +57,7 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
 
     /// Hide even a pinned panel so recapturing its area cannot OCR our own text.
     func suspendForCapture() {
+        translator.cancelCurrent()
         restoreAfterCapture = panel?.isVisible == true
         panel?.orderOut(nil)
     }
@@ -57,9 +74,9 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
         state.presentOriginal(result.text)
         originalView?.string = state.original
         originalView?.scrollToBeginningOfDocument(nil)
-        translationView?.string = "Translation will be available in Step 4.\nCaptured text has not been sent to a provider."
+        translator.receiveOriginal(result.text)
+        renderTranslation(translator.state)
         translationView?.scrollToBeginningOfDocument(nil)
-        translationCopyButton?.isEnabled = state.canCopyTranslation
         feedback?.stringValue = copiedAutomatically ? "Original text copied automatically." : "Original text recognized. Copy to try again."
         if !state.isPinned {
             position(near: result.region)
@@ -83,10 +100,14 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
         displayObserver = nil
         originalView?.string = ""
         translationView?.string = ""
+        translationSubscription?.cancel()
+        translationSubscription = nil
+        translator.stop()
         state = ResultPanelState()
     }
 
     @objc private func hide() {
+        translator.cancelCurrent()
         restoreAfterCapture = false
         panel?.orderOut(nil)
     }
@@ -98,6 +119,27 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
     @objc private func copyTranslation() {
         guard state.canCopyTranslation else { return }
         feedback?.stringValue = ClipboardWriter.write(state.translation) ? "Translation copied." : "Could not copy translation. Try again."
+    }
+
+    @objc private func translateCurrent() { translator.translateCurrent() }
+    @objc private func cancelTranslation() { translator.cancelCurrent() }
+    @objc private func changeTarget() {
+        guard let popup = targetPopup, TargetLanguage.allCases.indices.contains(popup.indexOfSelectedItem) else { return }
+        settings.targetLanguage = TargetLanguage.allCases[popup.indexOfSelectedItem]
+    }
+
+    private func renderTranslation(_ value: TranslationCoordinator.State) {
+        state.applyTranslation(value.translation)
+        let status = translator.statusText(for: value)
+        translationView?.string = value.translation ?? status
+        feedback?.stringValue = status
+        feedback?.toolTip = status
+        translationCopyButton?.isEnabled = state.canCopyTranslation
+        let busy = value.phase == .translating || value.phase == .retrying
+        translateButton?.isEnabled = state.hasResult && !busy
+        cancelTranslationButton?.isHidden = !busy
+        let index = TargetLanguage.allCases.firstIndex(of: translator.targetLanguage) ?? 0
+        targetPopup?.selectItem(at: index)
     }
 
     @objc private func togglePin() {
@@ -115,7 +157,7 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
     private func ensurePanel() {
         guard panel == nil else { return }
         let panel = ResultPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 440, height: 460),
+            contentRect: CGRect(x: 0, y: 0, width: 460, height: 520),
             styleMask: [.titled, .closable, .resizable, .nonactivatingPanel],
             backing: .buffered, defer: false
         )
@@ -126,7 +168,7 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentMinSize = CGSize(width: 360, height: 360)
+        panel.contentMinSize = CGSize(width: 440, height: 410)
         panel.delegate = self
         panel.onDismiss = { [weak self] in self?.hide() }
         panel.contentView = makeContent()
@@ -137,7 +179,7 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
     }
 
     private func makeContent() -> NSView {
-        let root = NSView(frame: CGRect(x: 0, y: 0, width: 440, height: 460))
+        let root = NSView(frame: CGRect(x: 0, y: 0, width: 460, height: 520))
         let stack = NSStackView()
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -154,7 +196,7 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
         let originalCopy = button("Copy Original", action: #selector(copyOriginal))
         let translatedCopy = button("Copy Translation", action: #selector(copyTranslation))
         translatedCopy.isEnabled = false
-        translatedCopy.toolTip = "Available once a translation exists (Step 4)."
+        translatedCopy.toolTip = "Copies the translation only when explicitly clicked."
         translationCopyButton = translatedCopy
 
         let originalScroll = textArea(label: "Original text")
@@ -175,10 +217,25 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
         feedback.lineBreakMode = .byTruncatingTail
         self.feedback = feedback
 
+        let popup = NSPopUpButton()
+        popup.addItems(withTitles: TargetLanguage.allCases.map(\.rawValue))
+        popup.target = self
+        popup.action = #selector(changeTarget)
+        popup.toolTip = "Changing target clears the old translation. Click Translate to send the current text."
+        popup.setContentHuggingPriority(.required, for: .horizontal)
+        targetPopup = popup
+        let translate = button("Translate", action: #selector(translateCurrent))
+        translateButton = translate
+        let cancel = button("Cancel", action: #selector(cancelTranslation))
+        cancel.isHidden = true
+        cancelTranslationButton = cancel
+        let actions = row([popup, NSView(), translate, cancel])
+
         let views: [NSView] = [
             row([heading("Original"), NSView(), originalCopy]),
             originalScroll,
             row([heading("Translation"), NSView(), translatedCopy]),
+            actions,
             translatedScroll,
             footer,
             feedback,

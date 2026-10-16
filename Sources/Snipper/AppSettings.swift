@@ -37,6 +37,8 @@ struct ShortcutConfiguration: Codable, Equatable {
 final class AppSettings: ObservableObject {
     private let defaults: UserDefaults
 
+    @Published var cloudTranslationConsent: Bool { didSet { defaults.set(cloudTranslationConsent, forKey: "cloudTranslationConsent") } }
+    @Published private(set) var credentialsVersion = UUID()
     @Published var automaticTranslation: Bool { didSet { defaults.set(automaticTranslation, forKey: "automaticTranslation") } }
     @Published var targetLanguage: TargetLanguage { didSet { defaults.set(targetLanguage.rawValue, forKey: "targetLanguage") } }
     @Published var model: String { didSet { defaults.set(model, forKey: "model") } }
@@ -48,6 +50,7 @@ final class AppSettings: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        cloudTranslationConsent = defaults.bool(forKey: "cloudTranslationConsent")
         automaticTranslation = defaults.object(forKey: "automaticTranslation") as? Bool ?? true
         targetLanguage = defaults.string(forKey: "targetLanguage").flatMap(TargetLanguage.init(rawValue:)) ?? .traditionalChinese
         model = defaults.string(forKey: "model") ?? ""
@@ -55,6 +58,8 @@ final class AppSettings: ObservableObject {
         captureShortcut = Self.loadShortcut(defaults, key: "captureShortcut", fallbackKey: "2", fallbackModifiers: .commandShift)
         recaptureShortcut = Self.loadShortcut(defaults, key: "recaptureShortcut", fallbackKey: "1", fallbackModifiers: .commandShift)
     }
+
+    func credentialsDidChange() { credentialsVersion = UUID() }
 
     var shortcutWarning: String? {
         guard captureShortcut.isValid, recaptureShortcut.isValid else {

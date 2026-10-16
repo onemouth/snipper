@@ -13,10 +13,11 @@ Personal macOS 26 menu-bar OCR + translation app. No third-party dependencies.
   recognition of generated English/Japanese text (no screen capture in tests).
 - **Step 3 — complete (user confirmed):** one reusable,
   nonactivating result panel with read-only original text, copy, pin, drag, resize,
-  close/Escape, and onscreen placement near the source. Translation is a placeholder.
-- **Step 4 — in progress:** Test Connection is implemented for the saved key and
-  chosen model. Captured-text translation, translation cache, and panel integration
-  are still pending. Only a confirmed connection test sends a fixed sample.
+  close/Escape, and onscreen placement near the source.
+- **Step 4 — implemented, awaiting manual translation verification:** OpenRouter
+  translation, built-in prompt, automatic/manual modes, target selector, explicit
+  translation copy, cancellation/latest-result-wins, bounded retry, and memory cache.
+  Test Connection remains available independently.
 - **Step 5 — pending:** final reliability testing.
 
 ## Build and run
@@ -44,8 +45,8 @@ Screen Recording authorization. Consistent Developer ID signing is a future opti
 - **Shift–Command–1:** capture the last selected region again, without selecting.
 - On success, original text is automatically copied and shown in a nonactivating
   result panel. Useful line breaks are preserved; styling is not. Copy Original
-  copies it again explicitly. Translation and its copy button remain unavailable
-  until Step 4.
+  copies it again explicitly. Cloud translation is optional; Copy Translation is
+  enabled only after a successful translation and never runs automatically.
 - Capture happens after releasing the mouse, not at the start of selection. For
   animated/game content, keep the text visible until recognition completes.
 - Selection is limited to the display where dragging begins. Multiple displays
@@ -108,8 +109,44 @@ Furigana, unusual fonts, and complex layouts may still have recognition errors.
 OpenRouter endpoint: `https://openrouter.ai/api/v1`. Enter a chosen model ID; none
 is selected automatically. The API key is only stored in macOS Keychain, never
 preferences or logs. The secure field clears after saving. “Check Key” checks local
-storage only, not API validity, and does not reveal the key. Captured-text
-translation is not implemented yet, even if its preference is enabled.
+storage only, not API validity, and does not reveal the key. The reusable chat
+backend accepts compatible HTTPS base URLs in code; MVP settings expose the
+OpenRouter preset only.
+
+### Cloud translation
+
+**Allow cloud translation is off by default**, including when upgrading an app
+that already has a saved key. In Settings → Translation, review the disclosure,
+enable that switch, and select a model. Your existing saved Keychain key is reused.
+API charges and OpenRouter/model-provider data policies apply.
+
+- With **Translate automatically after capture** on, each successful OCR capture
+  copies/shows original text first, then translates asynchronously.
+- With automatic translation off, captures stay local. Click **Translate** in the
+  result panel to send that capture explicitly (cloud permission is still required).
+- Target defaults to Traditional Chinese, with Japanese and English options in
+  settings and the panel. Changing target clears stale translation but sends
+  nothing until Translate or a new automatic capture.
+- Original text is read-only. Copy Original and Copy Translation are separate;
+  translation completion never touches the clipboard. Errors leave OCR useful.
+- The built-in prompt requests fluent, faithful translation only, preserves names,
+  numbers, tone and useful paragraphs, uses Taiwan vocabulary for Traditional
+  Chinese, and treats captured content as data rather than instructions. There is
+  no prompt editor or OCR editing workflow in the MVP. Prompt separation reduces
+  instruction confusion; it cannot guarantee any model's translation behavior.
+- Cancel stops local waiting. Closing the panel, starting capture, changing target,
+  model, credentials, consent, or the automatic toggle cancels in-flight work.
+  Old/cancelled results cannot replace a newer result or populate the cache.
+  Configuration changes never silently translate an existing capture.
+- Each request times out after 30 seconds. Only HTTP 429/502/503/529 get one retry
+  after a 1-second delay; no timeout/network/authentication retries. Cancellation
+  cannot undo provider processing or charges. A retry can also incur a charge.
+- Input is capped at 12,000 characters, output at 8,192 completion tokens. Oversized
+  input fails locally; output-limit responses are errors, not partial translations.
+- An exact-text LRU cache is memory-only, capped at 32 entries / 200 KB of UTF-8
+  source and translation. Keys include model, target, endpoint and prompt version.
+  Quit, saved-key changes and revoking cloud permission clear it. Settings also
+  offers Clear Translation Cache. It is never persisted or logged.
 
 ### Test Connection
 
@@ -140,16 +177,18 @@ manual test. See [docs/connection-test-verification.md](docs/connection-test-ver
 
 Screenshots are transient in-memory images: never saved or sent over the network.
 OCR runs on-device. No persistent capture history or source/translation/secret
-logs. Only the latest OCR text and selected region are retained in memory; copied
+logs. The latest OCR/translation result, selected region and bounded translation
+cache are retained only in memory; copied
 original text also remains in the system clipboard and may be read by clipboard
 managers or synced by macOS according to system settings.
 
 Test Connection sends only its fixed sample to OpenRouter and its selected model
 provider, after explicit confirmation. It does not send captured text.
 
-In a later milestone, requesting translation will send only OCR text—not
-screenshots—to OpenRouter and the selected model provider. Translation cache will
-be memory-only. Translation will never automatically overwrite the clipboard.
+With Allow cloud translation enabled, automatic captures or an explicit Translate
+send OCR text (with the built-in translation instructions) to OpenRouter and the
+selected model provider—not screenshots. Translation never automatically
+overwrites the clipboard.
 
 ## Step 2 manual verification
 
@@ -162,3 +201,10 @@ running app; automated tests use generated images only.
 See [docs/step-3-verification.md](docs/step-3-verification.md). Automated coverage
 also exercises placement geometry, result replacement, pin state, and plain-text
 copying using isolated test pasteboards (not your system clipboard).
+
+## Step 4 manual verification
+
+See [docs/step-4-verification.md](docs/step-4-verification.md). Automated translation
+tests use injected responses and fake keys, not real or billable API calls. Coverage
+includes prompt separation, consent, targets, cache limits, retries, cancellation,
+late responses, credentials changes, and original-text preservation.

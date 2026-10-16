@@ -1,7 +1,8 @@
 # Step 2 — manual verification
 
 Use non-sensitive sample text. Do not paste private captures into bug reports.
-Quit the old Snipper, build, and launch `dist/Snipper.app`. Quit any app owning
+Turn Allow cloud translation off for this local-only check. Quit the old Snipper,
+build, and launch `dist/Snipper.app`. Quit any app owning
 Shift–Command–2 or change the shortcut in settings.
 
 ## 1. First capture / permission
@@ -28,7 +29,8 @@ This is the original text.
 
 1. Close Snipper Settings so it does not cover the source.
 2. Select only the sample lines with Shift–Command–2.
-3. Expect the overlay to disappear, then an “Original text copied” toast.
+3. Expect the overlay to disappear, then the original-text result panel. Its footer
+   confirms the original was copied automatically.
 4. Paste into another document. Expect original English/Japanese text with line
    breaks, not a translation. No API key is needed.
 5. Check that the source app retains keyboard focus after selection.

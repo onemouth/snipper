@@ -26,6 +26,16 @@ struct ChatCompletionClientTests {
         #expect(payload["tools"] == nil)
     }
 
+    @Test func supportsCompatibleHTTPSBaseURLsAndRejectsUnsafeEndpoints() throws {
+        let request = try ChatCompletionClient.makeRequest(model: "example/model", apiKey: "fake", messages: testMessages, maxCompletionTokens: 256, baseURL: URL(string: "https://provider.invalid/v1")!)
+        #expect(request.url?.absoluteString == "https://provider.invalid/v1/chat/completions")
+        for endpoint in ["http://provider.invalid/v1", "https://user:password@provider.invalid/v1", "https://provider.invalid/v1?key=secret", "https://provider.invalid/v1#fragment"] {
+            #expect(throws: ChatCompletionError.invalidEndpoint) {
+                try ChatCompletionClient.makeRequest(model: "example/model", apiKey: "fake", messages: testMessages, maxCompletionTokens: 256, baseURL: URL(string: endpoint)!)
+            }
+        }
+    }
+
     @Test func rejectsMissingConfigurationBeforeTransport() async throws {
         let client = ChatCompletionClient { _ in
             Issue.record("Transport must not run for invalid configuration")

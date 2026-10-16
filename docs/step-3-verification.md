@@ -1,14 +1,15 @@
 # Step 3 — result panel verification
 
 Quit the old Snipper and launch the rebuilt `dist/Snipper.app`. Use non-sensitive
-English/Japanese sample text. No API key is needed and no translation request runs.
+English/Japanese sample text. Turn Allow cloud translation off for this panel-only
+check. No API key is needed and no translation request runs.
 
 ## Original text, focus, and clipboard
 
 1. Capture sample text with Shift–Command–2. Expect one panel near the selected
    region, preferably not overlapping it, and entirely within the usable screen.
 2. Verify the original is shown immediately after OCR and matches what pastes.
-   Translation explains that Step 4 is pending; Copy Translation is disabled.
+   Translation explains that cloud translation is off; Copy Translation is disabled.
 3. Without clicking Snipper, type in the source app. The source must still own
    keyboard focus. Escape in the source app must NOT close Snipper's panel.
 4. Click inside Original, select some text, and use Command–C. Selection copying
@@ -35,15 +36,15 @@ English/Japanese sample text. No API key is needed and no translation request ru
 4. Unpin and capture again; it should position near the new source.
 5. Move the panel so it covers part of the remembered capture region. Recapture
    using Shift–Command–1. It must hide before the screenshot and recognize the
-   underlying source, not Snipper's previous result or placeholder.
+   underlying source, not Snipper's previous result or translation status.
 6. Start selection, then Escape/right-click. A previously visible panel should
    return unchanged; clipboard stays unchanged. If the panel was already closed,
    cancellation should NOT reopen it.
 7. Capture a blank area. Expect an OCR error and the prior visible result restored,
    not an empty panel or clipboard. A closed panel should stay closed on failure.
 8. Turn automatic translation off in settings, then capture. The original panel
-   still appears and is copied. Translation stays unavailable regardless of the
-   setting until Step 4.
+   still appears and is copied. Translation requires an explicit Translate click
+   and cloud permission; see the Step 4 checklist for that separate test.
 
 ## Displays (if available)
 

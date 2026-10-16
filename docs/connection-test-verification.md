@@ -1,8 +1,8 @@
 # Test Connection — manual verification
 
-The connection test is the only cloud operation in this partial Step 4 build.
-Captured-text translation remains unimplemented. Real tests may incur a small API
-charge. Never paste your API key into chat, bug reports, or a screenshot.
+The connection test sends only its fixed sample. Captured-text translation is a
+separate feature gated by Allow cloud translation (off by default). Real tests
+may incur an API charge. Never paste your API key into chat, bug reports, or a screenshot.
 
 ## Successful connection
 
@@ -16,8 +16,8 @@ charge. Never paste your API key into chat, bug reports, or a screenshot.
 6. Reopen the confirmation and accept. Expect a progress indicator and a success
    message once the selected model returns visible text.
 7. Paste the clipboard sentinel to verify the test did not overwrite it.
-8. Capture harmless text. The result panel still shows original text only—testing
-   does not enable captured-text translation.
+8. Leave Allow cloud translation off, then capture harmless text. The panel shows
+   original text only—Test Connection does not grant permission to send OCR text.
 
 The fixed sample is “Hello.”, translated into Traditional Chinese, regardless of
 the currently selected target language. The test response is not shown or logged.
