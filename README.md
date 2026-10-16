@@ -7,15 +7,17 @@ Personal macOS 26 menu-bar OCR + translation app. No third-party dependencies.
 - **Step 1 — complete:** AppKit menu bar, SwiftUI settings, persistent non-secret
   preferences, Keychain API-key storage, local app packaging, global shortcuts.
   User verified shortcut feedback. Four preference tests pass.
-- **Step 2 — implemented, awaiting manual capture verification:** rectangle selection,
+- **Step 2 — complete:** rectangle selection,
   ScreenCaptureKit screenshots, Apple Vision OCR, original-text clipboard copy,
   and recapture of the last region. Fourteen automated tests pass, including Vision
   recognition of generated English/Japanese text (no screen capture in tests).
-- **Step 3 — implemented, awaiting manual UI verification:** one reusable,
+- **Step 3 — complete (user confirmed):** one reusable,
   nonactivating result panel with read-only original text, copy, pin, drag, resize,
   close/Escape, and onscreen placement near the source. Translation is a placeholder.
-- **Steps 4–5 — pending:** OpenRouter translation and final reliability testing.
-  Translation preferences currently make no network requests.
+- **Step 4 — in progress:** Test Connection is implemented for the saved key and
+  chosen model. Captured-text translation, translation cache, and panel integration
+  are still pending. Only a confirmed connection test sends a fixed sample.
+- **Step 5 — pending:** final reliability testing.
 
 ## Build and run
 
@@ -106,8 +108,33 @@ Furigana, unusual fonts, and complex layouts may still have recognition errors.
 OpenRouter endpoint: `https://openrouter.ai/api/v1`. Enter a chosen model ID; none
 is selected automatically. The API key is only stored in macOS Keychain, never
 preferences or logs. The secure field clears after saving. “Check Key” checks local
-storage only, not API validity, and does not reveal the key. Translation is not
-implemented yet, even if its preference is enabled.
+storage only, not API validity, and does not reveal the key. Captured-text
+translation is not implemented yet, even if its preference is enabled.
+
+### Test Connection
+
+1. Settings → Translation: enter your exact OpenRouter model ID.
+2. Enter an API key and click **Save Key** (or reuse your previously saved key).
+   Save or clear any unsaved new key before testing.
+3. Click **Test Connection…**, review the possible API charge, and confirm.
+4. Expect a progress indicator, then a success or sanitized failure message.
+
+The test sends only the fixed sample `Hello.` for translation into Traditional
+Chinese, independent of the target-language preference. It never reads captured
+text or touches the clipboard. A nonempty model response confirms that the saved
+key/model combination works; translation quality is not scored and the response
+itself is not displayed or logged. Check Key remains a local storage check only.
+
+Tests have a 30-second timeout, 256-completion-token cap, Cancel Test, and no
+automatic retry. Reasoning models may exhaust this small output budget; use a
+model suited to a short response. Cancellation/timeouts cannot reverse provider
+work or charges already incurred. HTTP error bodies are not displayed; common
+credential, quota, permission, model, rate-limit, and provider errors get safe
+messages. Redirects are blocked; the HTTP session has no cache or cookies.
+
+Automated tests use fake keys and injected responses, never your real key or a
+billable request. Real OpenRouter connectivity and Keychain prompts require your
+manual test. See [docs/connection-test-verification.md](docs/connection-test-verification.md).
 
 ## Privacy
 
@@ -116,6 +143,9 @@ OCR runs on-device. No persistent capture history or source/translation/secret
 logs. Only the latest OCR text and selected region are retained in memory; copied
 original text also remains in the system clipboard and may be read by clipboard
 managers or synced by macOS according to system settings.
+
+Test Connection sends only its fixed sample to OpenRouter and its selected model
+provider, after explicit confirmation. It does not send captured text.
 
 In a later milestone, requesting translation will send only OCR text—not
 screenshots—to OpenRouter and the selected model provider. Translation cache will

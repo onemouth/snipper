@@ -57,7 +57,7 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
         state.presentOriginal(result.text)
         originalView?.string = state.original
         originalView?.scrollToBeginningOfDocument(nil)
-        translationView?.string = "Translation will be available in Step 4.\nNo text has been sent to a provider."
+        translationView?.string = "Translation will be available in Step 4.\nCaptured text has not been sent to a provider."
         translationView?.scrollToBeginningOfDocument(nil)
         translationCopyButton?.isEnabled = state.canCopyTranslation
         feedback?.stringValue = copiedAutomatically ? "Original text copied automatically." : "Original text recognized. Copy to try again."

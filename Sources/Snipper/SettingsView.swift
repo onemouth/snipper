@@ -6,6 +6,8 @@ struct SettingsView: View {
     @ObservedObject var capture: CaptureCoordinator
     @State private var apiKey = ""
     @State private var keyStatus = "Key has not been checked."
+    @State private var confirmConnectionTest = false
+    @StateObject private var connectionTest = ConnectionTestModel()
     private let keychain = KeychainStore()
 
     var body: some View {
@@ -17,6 +19,14 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(width: 560, height: 490)
+        .alert("Test OpenRouter connection?", isPresented: $confirmConnectionTest) {
+            Button("Test Connection") { connectionTest.start(model: settings.model) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This sends the fixed sample “Hello.” for translation into Traditional Chinese using your saved API key and selected model. A small API charge may apply. No captured text or screenshots are sent; your clipboard is unchanged.")
+        }
+        .onChange(of: settings.model) { _, _ in connectionTest.reset() }
+        .onDisappear { connectionTest.cancelIfRunning() }
     }
 
     private var general: some View {
@@ -44,7 +54,7 @@ struct SettingsView: View {
             Section("MVP behavior") {
                 Text(capture.status)
                     .textSelection(.enabled)
-                Text("Successful OCR copies original text and opens a read-only result panel without activating Snipper. Pin keeps its position. Translation arrives in Step 4; no requests are sent yet.")
+                Text("Successful OCR copies original text and opens a read-only result panel without activating Snipper. Pin keeps its position. Captured-text translation arrives later in Step 4. Only Test Connection sends a fixed sample when explicitly confirmed.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -62,22 +72,43 @@ struct SettingsView: View {
                 }
                 TextField("Model ID", text: $settings.model, prompt: Text("provider/model-name"))
                     .autocorrectionDisabled()
+                    .disabled(connectionTest.isTesting)
                 Text("Endpoint: \(AppSettings.openRouterBaseURL.absoluteString)")
                     .font(.caption).foregroundStyle(.secondary)
                 SecureField("New API key", text: $apiKey)
                     .autocorrectionDisabled()
+                    .disabled(connectionTest.isTesting)
                 HStack {
                     Button("Save Key") { saveKey() }
-                        .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(connectionTest.isTesting || apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("Check Key") { checkKey() }
                     Button("Delete Key", role: .destructive) { deleteKey() }
                 }
+                .disabled(connectionTest.isTesting)
                 Text(keyStatus).font(.caption).textSelection(.enabled)
+            }
+            Section("Connection test") {
+                HStack {
+                    Button("Test Connection…") { confirmConnectionTest = true }
+                        .disabled(connectionTest.isTesting || !apiKey.isEmpty || settings.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if connectionTest.isTesting {
+                        ProgressView().controlSize(.small)
+                        Button("Cancel Test") { connectionTest.cancelIfRunning() }
+                    }
+                }
+                Text(connectionTest.status)
+                    .font(.caption).textSelection(.enabled)
+                if !apiKey.isEmpty {
+                    Text("Save or clear the new key before testing. The test uses the saved Keychain key.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Text("Fixed sample only · May incur a small API charge · 30-second timeout · No automatic retry")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             Section("Privacy") {
                 Text("OCR runs locally. When you request translation, only recognized text will be sent to OpenRouter and its selected model provider—not screenshots. Provider data policies apply.")
                 Text("API keys stay in macOS Keychain. No persistent capture history or text logging; translation cache will be memory-only.")
-                Text("Translation is not implemented yet. These preferences do not send any requests.")
+                Text("Captured-text translation is not implemented yet. Only Test Connection sends a fixed sample to OpenRouter and its selected model provider after your confirmation.")
                     .foregroundStyle(.secondary)
             }
         }
@@ -107,6 +138,7 @@ struct SettingsView: View {
     }
 
     private func saveKey() {
+        connectionTest.reset()
         do {
             try keychain.save(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
             apiKey = ""
@@ -125,6 +157,7 @@ struct SettingsView: View {
     }
 
     private func deleteKey() {
+        connectionTest.reset()
         do {
             try keychain.delete()
             apiKey = ""

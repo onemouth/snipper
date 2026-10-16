@@ -44,7 +44,7 @@ final class AppSettings: ObservableObject {
     @Published var captureShortcut: ShortcutConfiguration { didSet { save(captureShortcut, key: "captureShortcut") } }
     @Published var recaptureShortcut: ShortcutConfiguration { didSet { save(recaptureShortcut, key: "recaptureShortcut") } }
 
-    static let openRouterBaseURL = URL(string: "https://openrouter.ai/api/v1")!
+    nonisolated static let openRouterBaseURL = URL(string: "https://openrouter.ai/api/v1")!
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
