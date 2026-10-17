@@ -1,9 +1,10 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Snipper
 
 // Original, tiny fixtures generated in memory. No third-party dictionary content.
-private struct DictionaryFixture {
+struct DictionaryFixture {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("SnipperDictionaryTests-\(UUID().uuidString)")
     var root: URL { directory.appendingPathComponent("installed") }
     var archive: URL { directory.appendingPathComponent("dictionary.zip") }
@@ -16,8 +17,8 @@ private struct DictionaryFixture {
     func cleanup() { try? FileManager.default.removeItem(at: directory) }
 
     static func json(_ value: Any) throws -> Data { try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) }
-    static func index(format: Int = 3) throws -> Data {
-        try json(["title": "Snipper Original Test Dictionary", "format": format, "revision": "1", "sequenced": true])
+    static func index(format: Int = 3, title: String = "Snipper Original Test Dictionary") throws -> Data {
+        try json(["title": title, "format": format, "revision": "1", "sequenced": true])
     }
     static var png: Data { Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aQ1sAAAAASUVORK5CYII=")! }
     static func terms() throws -> Data {
@@ -99,6 +100,28 @@ struct DictionaryTests {
         #expect(try await reopened.dictionaries().isEmpty)
         #expect(FileManager.default.fileExists(atPath: fixture.archive.path))
         #expect(!FileManager.default.fileExists(atPath: resource.path))
+    }
+
+    @Test func searchesAcrossDictionariesWithSelectionAndLimits() async throws {
+        let fixture = try DictionaryFixture(files: DictionaryFixture.files())
+        defer { fixture.cleanup() }
+        let store = DictionaryStore(root: fixture.root)
+        let first = try await store.importDictionary(from: fixture.archive)
+        var secondFiles = try DictionaryFixture.files().filter { $0.0 != "index.json" }
+        secondFiles.append(("index.json", try DictionaryFixture.index(title: "Second Original Test Dictionary")))
+        try DictionaryFixture.zip(secondFiles).write(to: fixture.archive)
+        let second = try await store.importDictionary(from: fixture.archive)
+        #expect(try await store.search(" 猫 \n").count == 4)
+        let selected = try await store.search("ねこ", dictionaryID: second.id)
+        #expect(selected.count == 2)
+        #expect(selected.allSatisfy { $0.dictionary.id == second.id })
+        #expect(selected.first?.resources.lastPathComponent == "resources")
+        #expect(try await store.search("猫", dictionaryID: first.id, limit: 1).count == 1)
+        #expect(try await store.search("猫", limit: 3).count == 3)
+        #expect(try await store.search("  ").isEmpty)
+        #expect(try await store.search(String(repeating: "x", count: 257)).isEmpty)
+        #expect(try await store.search("missing").isEmpty)
+        await #expect(throws: DictionaryError.self) { try await store.search("猫", dictionaryID: UUID().uuidString) }
     }
 
     @Test func duplicateDoesNotChangeExistingDictionary() async throws {

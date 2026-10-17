@@ -83,8 +83,20 @@ Manual checks in **Settings → Dictionaries**:
 - Import the same title again; it should be rejected without changing the installed copy.
 - Cancel a large import. Nothing should appear installed; retry should work.
 - Delete with confirmation; the imported database/images disappear, while the source ZIP remains.
-- Check capture and translation still work. Import does not provide a dictionary
-  popup or modify the clipboard, credentials, or cloud consent.
+- In Test dictionary lookup, search a headword and reading (for example `猫` and
+  `ねこ`). Return and Search should open the same results popover. Check reading,
+  headword, dictionary source, plain definitions, and entries containing local images.
+- Select a dictionary, then All installed dictionaries; verify filtering. Search
+  an absent word for a no-match message; inflected forms are not deinflected yet.
+- Select/copy text explicitly; search itself must not change the clipboard. Scroll
+  long definitions, close with Escape/click outside, and reopen with Show Results.
+- Edit the query, change dictionaries, close Settings, or begin import/deletion
+  during a search: stale results must not reopen a popup. Deleting the selected
+  dictionary should reset selection to All installed dictionaries.
+- Test in light/dark appearance. Dictionary HTML-like text is literal, links do
+  not open/fetch, and basic structured formatting/images render without scripts.
+- Check capture and translation still work. Search/import must not modify
+  credentials or cloud consent. On-screen lookup is not implemented yet.
 
 Imported data lives under `~/Library/Application Support/Snipper/Dictionaries/`.
 A separate SQLite database and resources folder are published atomically for each

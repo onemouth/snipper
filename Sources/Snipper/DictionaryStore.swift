@@ -6,6 +6,13 @@ struct DictionaryImportProgress: Sendable {
     let terms: Int
 }
 
+struct DictionarySearchEntry: Identifiable, Sendable {
+    let id = UUID()
+    let dictionary: ImportedDictionary
+    let term: DictionaryTerm
+    let resources: URL
+}
+
 struct DictionaryImportLimits: Sendable {
     var archiveBytes = 1_000_000_000
     var expandedBytes = 2_000_000_000
@@ -86,7 +93,26 @@ actor DictionaryStore {
         catch { throw DictionaryError.storage }
     }
 
-    // Internal exact matching only: no normalization, deinflection, or user-facing search yet.
+    func search(_ query: String, dictionaryID: String? = nil, limit: Int = 30) throws -> [DictionarySearchEntry] {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 256 else { return [] }
+        let installed = try dictionaries()
+        if let dictionaryID, !installed.contains(where: { $0.id == dictionaryID }) {
+            throw DictionaryError.missingDictionary
+        }
+        let maximum = max(1, min(limit, 100))
+        var results: [DictionarySearchEntry] = []
+        for dictionary in installed where dictionaryID == nil || dictionary.id == dictionaryID {
+            try Task.checkCancellation()
+            let matches = try lookup(text, dictionaryID: dictionary.id, limit: maximum - results.count)
+            let resources = root.appendingPathComponent(dictionary.id).appendingPathComponent("resources", isDirectory: true)
+            results += matches.map { DictionarySearchEntry(dictionary: dictionary, term: $0, resources: resources) }
+            if results.count >= maximum { break }
+        }
+        return results
+    }
+
+    // Exact matching only: no normalization or deinflection yet.
     func lookup(_ text: String, dictionaryID: String, limit: Int = 20) throws -> [DictionaryTerm] {
         guard UUID(uuidString: dictionaryID) != nil else { throw DictionaryError.missingDictionary }
         try prepare()

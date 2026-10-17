@@ -89,11 +89,20 @@ Yomitan format 3 term dictionary ZIP. Imports run locally with progress and
 cancellation. The list shows each dictionary’s title, revision, entry count, and
 image count; Delete removes the imported copy, not your original ZIP.
 
-This currently provides **import and storage only**—on-screen dictionary lookup,
-deinflection, and definition display are not available yet. Terms, tags, definition
-JSON, and PNG/JPEG/GIF/WebP images are preserved. Frequency, pitch-accent, kanji
-banks, and custom styles are not imported. Duplicate titles are rejected; delete
-the installed version before importing a replacement.
+Use **Test dictionary lookup** in the same tab to search an exact headword or
+reading, such as `猫` or `ねこ`, across all dictionaries or a selected dictionary.
+Press Return or click Search for a selectable results popover with readings,
+headwords, dictionary labels, definitions, and inline local images. Show Results
+reopens the popup; Escape or clicking outside dismisses it. Lookup never uploads
+text or changes the clipboard automatically. Results are limited to 30 entries.
+
+On-screen dictionary lookup and deinflection are not available yet—search the
+base form, not an inflected sentence. Terms, tags, definition JSON, and
+PNG/JPEG/GIF/WebP images are preserved. The preview supports basic structured
+content, not full Yomitan styling; links are text-only and unusually large previews
+are shortened. Frequency, pitch-accent, kanji banks, and custom styles are not
+imported. Duplicate titles are rejected; delete the installed version before
+importing a replacement.
 
 Dictionaries persist under `~/Library/Application Support/Snipper/Dictionaries/`.
 Only import dictionaries you have permission to use; no third-party dictionaries

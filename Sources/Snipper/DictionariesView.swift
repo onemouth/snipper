@@ -9,6 +9,12 @@ final class DictionariesModel: ObservableObject {
     @Published private(set) var isBusy = false
     @Published private(set) var isImporting = false
     @Published private(set) var status = "Import a Yomitan format 3 term dictionary ZIP to store it locally."
+    @Published private(set) var searchResults: [DictionarySearchEntry] = []
+    @Published private(set) var isSearching = false
+    @Published private(set) var searchStatus = ""
+    @Published var showSearchResults = false
+    private var searchTask: Task<Void, Never>?
+    private var searchID = UUID()
     private let store: DictionaryStore
     private var operation: Task<Void, Never>?
     private var operationID = UUID()
@@ -18,6 +24,45 @@ final class DictionariesModel: ObservableObject {
     func refresh() async {
         do { dictionaries = try await store.dictionaries() }
         catch { status = "Could not read installed dictionaries. Check folder permissions and available disk space." }
+    }
+
+    func resetSearch() {
+        searchTask?.cancel()
+        searchTask = nil
+        searchID = UUID()
+        searchResults = []
+        isSearching = false
+        showSearchResults = false
+        searchStatus = ""
+    }
+
+    func search(_ query: String, dictionaryID: String?) {
+        resetSearch()
+        guard !isBusy else { return }
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        guard text.count <= 256 else {
+            searchStatus = "Enter a word or reading up to 256 characters."
+            return
+        }
+        isSearching = true
+        let id = searchID
+        searchTask = Task { [weak self, store] in
+            do {
+                let results = try await store.search(text, dictionaryID: dictionaryID)
+                guard let self, self.searchID == id, !Task.isCancelled else { return }
+                self.searchResults = results
+                self.searchStatus = results.isEmpty ? "No exact headword or reading match. Try the dictionary form; deinflection is not available yet." : "\(results.count) entries (up to 30 shown)."
+                self.showSearchResults = !results.isEmpty
+                self.isSearching = false
+                self.searchTask = nil
+            } catch {
+                guard let self, self.searchID == id, !Task.isCancelled else { return }
+                self.searchStatus = "Dictionary search failed. Check that the dictionary is still installed."
+                self.isSearching = false
+                self.searchTask = nil
+            }
+        }
     }
 
     func chooseArchive() {
@@ -33,6 +78,7 @@ final class DictionariesModel: ObservableObject {
 
     func startImport(_ url: URL) {
         guard !isBusy else { return }
+        resetSearch()
         isBusy = true
         isImporting = true
         status = "Importing dictionary…"
@@ -74,6 +120,7 @@ final class DictionariesModel: ObservableObject {
 
     func delete(_ dictionary: ImportedDictionary) {
         guard !isBusy else { return }
+        resetSearch()
         isBusy = true
         operation = Task { [weak self, store] in
             do {
@@ -92,9 +139,47 @@ final class DictionariesModel: ObservableObject {
 struct DictionariesView: View {
     @StateObject private var model = DictionariesModel()
     @State private var pendingDeletion: ImportedDictionary?
+    @State private var searchText = ""
+    @State private var searchDictionaryID = ""
+
+    private func search() {
+        model.search(searchText, dictionaryID: searchDictionaryID.isEmpty ? nil : searchDictionaryID)
+    }
 
     var body: some View {
         Form {
+            Section("Test dictionary lookup") {
+                Picker("Dictionary", selection: $searchDictionaryID) {
+                    Text("All installed dictionaries").tag("")
+                    ForEach(model.dictionaries) { dictionary in
+                        Text(dictionary.title).tag(dictionary.id)
+                    }
+                }
+                HStack {
+                    TextField("Word or reading", text: $searchText, prompt: Text("猫 / ねこ"))
+                        .onSubmit { search() }
+                    Button("Search") { search() }
+                        .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSearching)
+                        .popover(isPresented: $model.showSearchResults, arrowEdge: .trailing) {
+                            DictionaryResultsPopover(entries: model.searchResults) {
+                                model.showSearchResults = false
+                            }
+                        }
+                    if model.isSearching { ProgressView().controlSize(.small) }
+                }
+                if !model.searchStatus.isEmpty {
+                    HStack {
+                        Text(model.searchStatus).font(.caption)
+                        if !model.searchResults.isEmpty {
+                            Button("Show Results") { model.showSearchResults = true }
+                                .font(.caption)
+                        }
+                    }
+                }
+                Text("Exact headword/reading lookup · Local only · No clipboard changes. Deinflection and on-screen lookup are not available yet.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .disabled(model.isBusy || model.dictionaries.isEmpty)
             Section("Local dictionaries") {
                 HStack {
                     Button("Import Dictionary…") { model.chooseArchive() }
@@ -107,7 +192,7 @@ struct DictionariesView: View {
                     }
                 }
                 Text(model.status).font(.caption).textSelection(.enabled)
-                Text("Yomitan format 3 terms, tags, and PNG/JPEG/GIF/WebP images. Definitions are preserved for future lookup; lookup and rendering are not available yet. Frequency, pitch-accent, kanji banks, and custom styles are not imported.")
+                Text("Yomitan format 3 terms, tags, and PNG/JPEG/GIF/WebP images. Test imported entries above. Frequency, pitch-accent, kanji banks, and custom styles are not imported.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Installed dictionaries") {
@@ -134,6 +219,14 @@ struct DictionariesView: View {
         }
         .formStyle(.grouped)
         .task { await model.refresh() }
+        .onDisappear { model.resetSearch() }
+        .onChange(of: searchText) { _, _ in model.resetSearch() }
+        .onChange(of: searchDictionaryID) { _, _ in model.resetSearch() }
+        .onChange(of: model.dictionaries) { _, dictionaries in
+            if !searchDictionaryID.isEmpty && !dictionaries.contains(where: { $0.id == searchDictionaryID }) {
+                searchDictionaryID = ""
+            }
+        }
         .alert("Delete imported dictionary?", isPresented: Binding(
             get: { pendingDeletion != nil },
             set: { if !$0 { pendingDeletion = nil } }
