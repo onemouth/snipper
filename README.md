@@ -82,6 +82,24 @@ breaks, using Taiwan vocabulary for Traditional Chinese. Captured text is sent
 separately from translation instructions. Translation quality depends on the model;
 there is no prompt editor or original-text editing workflow.
 
+## Local dictionaries
+
+In **Settings → Dictionaries**, choose **Import Dictionary…** and select a
+Yomitan format 3 term dictionary ZIP. Imports run locally with progress and
+cancellation. The list shows each dictionary’s title, revision, entry count, and
+image count; Delete removes the imported copy, not your original ZIP.
+
+This currently provides **import and storage only**—on-screen dictionary lookup,
+deinflection, and definition display are not available yet. Terms, tags, definition
+JSON, and PNG/JPEG/GIF/WebP images are preserved. Frequency, pitch-accent, kanji
+banks, and custom styles are not imported. Duplicate titles are rejected; delete
+the installed version before importing a replacement.
+
+Dictionaries persist under `~/Library/Application Support/Snipper/Dictionaries/`.
+Only import dictionaries you have permission to use; no third-party dictionaries
+are bundled. Imports are limited to a 1 GB ZIP, 2 GB expanded data, 32 MB per file,
+100,000 archive entries, and 2 million term entries.
+
 ## Privacy
 
 - **Screenshots stay local:** processed in memory, never saved or uploaded.
@@ -91,6 +109,8 @@ there is no prompt editor or original-text editing workflow.
 - **No persistent capture history:** results, the last region, and the bounded
   translation cache exist only in memory and clear on quit.
 - **No source, translation, or API-secret logging.**
+- **Imported dictionaries stay local:** dictionary databases and images persist
+  until deleted and are never uploaded.
 
 Copied text remains in the system clipboard and may be accessed by clipboard
 managers or synced according to your macOS settings. Clear Translation Cache in
@@ -120,6 +140,11 @@ swift test
 Tests use generated OCR images, isolated pasteboards, fake keys, and mocked API
 responses—not real credentials or billable requests. See [Testing](docs/testing.md)
 for manual checks that require the running app.
+
+SQLite and ZIP import use macOS’s system SQLite and libarchive libraries through
+small C interop targets. Private dictionary ZIPs in `testdata/` and generated SQLite
+files are ignored by Git. The optional real-dictionary import check is documented
+in [Testing](docs/testing.md).
 
 Regenerate the pixel-art app icon with:
 

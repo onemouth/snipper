@@ -61,6 +61,36 @@ Test Connection has no retry. Translation retries HTTP 429/502/503/529 once afte
 one second; authentication, timeout, and network failures are not retried.
 Cancellation does not guarantee the provider stopped processing or billing.
 
+## Dictionary import
+
+Automated tests generate tiny original ZIP fixtures, including structured content
+and a local image. They cover exact headword/reading queries, persistence, deletion,
+duplicates, invalid entries, missing images, unsafe paths/links, CRC errors, resource
+limits, and cancellation rollback. No third-party dictionary is bundled.
+
+For the supplied local integration dictionary (92,217 terms / 2,598 images), run:
+
+```sh
+SNIPPER_TEST_DICTIONARY="/path/to/local-dictionary.zip" swift test --filter localDictionaryIntegration
+```
+
+This uses a temporary database and removes it afterward. It does not install the
+dictionary into your normal app storage or upload any content.
+
+Manual checks in **Settings → Dictionaries**:
+- Import your format 3 ZIP; verify progress, title, revision, entry/image counts.
+- Close/reopen Settings or restart the app; the dictionary should remain installed.
+- Import the same title again; it should be rejected without changing the installed copy.
+- Cancel a large import. Nothing should appear installed; retry should work.
+- Delete with confirmation; the imported database/images disappear, while the source ZIP remains.
+- Check capture and translation still work. Import does not provide a dictionary
+  popup or modify the clipboard, credentials, or cloud consent.
+
+Imported data lives under `~/Library/Application Support/Snipper/Dictionaries/`.
+A separate SQLite database and resources folder are published atomically for each
+dictionary. Interrupted staging imports are removed on first dictionary access
+after restarting. Do not run multiple Snipper copies against the same storage.
+
 ## Displays and full-screen apps
 
 When available, test Retina/external displays arranged left, right, above, and below

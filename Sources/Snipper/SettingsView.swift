@@ -17,6 +17,8 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             translation
                 .tabItem { Label("Translation", systemImage: "character.bubble") }
+            DictionariesView()
+                .tabItem { Label("Dictionaries", systemImage: "books.vertical") }
         }
         .padding(20)
         .frame(width: 560, height: 490)
