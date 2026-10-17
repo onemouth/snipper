@@ -35,5 +35,10 @@ text preprocessors, and dictionary-provided `formOf` links are not implemented.
 A dictionary's `rules` field must identify compatible parts of speech for derived
 matches; entries without compatible tags remain available through exact lookup.
 
+The native result presentation also references the visual hierarchy in upstream
+`ext/css/display.css`: headword/reading separation, dictionary and definition-tag
+badges, and grouped senses. No upstream CSS/HTML is bundled or executed; grouping,
+hanging indents, emphasis, and nested lists use native Swift/AppKit attributed text.
+
 The generated rules and fixtures are GPL-covered derivatives, not independently
 created data. No third-party dictionary definitions or private ZIPs are included.

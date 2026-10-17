@@ -120,8 +120,14 @@ Import a term dictionary, then use harmless text in a separate app:
   explanation chains. The selection must stay on the original inflected text.
 - Check the Lookup label and source selection identify the actual matched word,
   including repeated words, Japanese compounds, and text after emoji/combining marks.
-- Drag over source text to select/copy normally; source text must remain read-only.
-  Scroll long text/definitions, resize/drag the panel, and check inline images.
+- Original text starts in a 44-point strip; Expand text / Collapse text should make
+  multiline text accessible without losing the selected word. Short words should
+  not reserve a large empty source area. Drag to select/copy; source remains read-only.
+- Identical spelling/reading results share one headword, followed by dictionary
+  badges and numbered senses. Different readings stay separate. Check hanging
+  indentation on wrapped senses, nested ordered/unordered lists, emphasis, and tags.
+  Inflection explanations should not repeat for every identical entry.
+- Scroll long text/definitions, resize/drag the panel, and check inline images.
 - Click punctuation or an absent word: clear old definitions/selection and show
   safe guidance. Blank captures should show an OCR error rather than old entries.
 - Rapidly click different words: old responses must not replace newer matches.
@@ -146,7 +152,9 @@ Automated coverage includes all 1,446 pinned upstream Japanese deinflection case
 limits, exact-match precedence, ambiguous lemmas, bounded/cancelled expansion,
 word candidates, exact matched occurrence, UTF-16 conversion, single-word auto
 lookup, clickable multiword model state, stale-result rejection, safe failures,
-OCR-to-SQLite matching, and existing capture geometry and horizontal/vertical OCR. Native click hit-testing, permissions, focus, and actual
+OCR-to-SQLite matching, and existing capture geometry and horizontal/vertical OCR. Presentation tests cover stable grouping, distinct readings,
+source badges, native emphasis/lists, sense indentation, and compact source sizing.
+Native click hit-testing, permissions, focus, and actual
 game/full-screen behavior still need manual checks.
 
 ## Deinflection packaging and licensing

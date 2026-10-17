@@ -15,6 +15,7 @@ struct DictionaryTerm: Equatable, Sendable {
     let reading: String
     let definitionsJSON: String
     let sequence: Int64
+    var definitionTags: [String] = []
 }
 
 enum DictionaryError: LocalizedError {
@@ -181,7 +182,7 @@ final class DictionaryDatabase {
         let values = Array(repeating: "(?)", count: words.count).joined(separator: ",")
         let statement = try prepare("""
             WITH candidates(text) AS (VALUES \(values))
-            SELECT headword, reading, definitions_json, sequence, rules FROM terms
+            SELECT headword, reading, definitions_json, sequence, rules, definition_tags FROM terms
             WHERE headword IN (SELECT text FROM candidates) OR reading IN (SELECT text FROM candidates)
             ORDER BY score DESC, id
             """)
@@ -197,15 +198,17 @@ final class DictionaryDatabase {
             let headword = string(0), reading = string(1), rules = string(4)
             let candidates = (grouped[headword] ?? []) + (reading == headword ? [] : grouped[reading] ?? [])
             guard let form = candidates.first(where: { deinflector.matches($0.conditions, dictionaryRules: rules) }) else { continue }
+            let tags = sqlite3_column_text(statement, 5).map { String(cString: $0) } ?? ""
             matches.append((DictionaryTerm(headword: headword, reading: reading, definitionsJSON: string(2),
-                                           sequence: sqlite3_column_int64(statement, 3)), form))
+                                           sequence: sqlite3_column_int64(statement, 3),
+                                           definitionTags: tags.split(whereSeparator: \.isWhitespace).map(String.init)), form))
             if matches.count >= max(1, min(limit, 100)) { return matches }
         }
     }
 
     func lookup(_ text: String, limit: Int) throws -> [DictionaryTerm] {
         let statement = try prepare("""
-            SELECT headword, reading, definitions_json, sequence FROM terms
+            SELECT headword, reading, definitions_json, sequence, definition_tags FROM terms
             WHERE headword = ? OR reading = ? ORDER BY score DESC, id LIMIT ?
             """)
         defer { sqlite3_finalize(statement) }
@@ -218,7 +221,10 @@ final class DictionaryDatabase {
             if status == SQLITE_DONE { return terms }
             guard status == SQLITE_ROW else { throw DictionaryError.storage }
             func string(_ column: Int32) -> String { String(cString: sqlite3_column_text(statement, column)) }
-            terms.append(DictionaryTerm(headword: string(0), reading: string(1), definitionsJSON: string(2), sequence: sqlite3_column_int64(statement, 3)))
+            let tags = sqlite3_column_text(statement, 4).map { String(cString: $0) } ?? ""
+            terms.append(DictionaryTerm(headword: string(0), reading: string(1), definitionsJSON: string(2),
+                                        sequence: sqlite3_column_int64(statement, 3),
+                                        definitionTags: tags.split(whereSeparator: \.isWhitespace).map(String.init)))
         }
     }
 }

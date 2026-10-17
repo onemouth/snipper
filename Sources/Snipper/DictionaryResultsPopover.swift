@@ -13,7 +13,8 @@ struct DictionaryResultsPopover: View {
                 Label("Dictionary lookup", systemImage: "book.closed")
                     .font(.headline)
                 Spacer()
-                Text("Exact match").font(.caption).foregroundStyle(.secondary)
+                Text(entries.contains { $0.inflection != nil } ? "Japanese base forms" : "Exact match")
+                    .font(.caption).foregroundStyle(.secondary)
                 Button(action: dismiss) { Image(systemName: "xmark") }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close dictionary results")
@@ -105,43 +106,86 @@ final class DictionaryDefinitionRenderer {
     private var resources = URL(fileURLWithPath: "/")
     private var truncated = false
     private let font = NSFont.systemFont(ofSize: 16)
+    private var indent: CGFloat = 0
+    private var hanging: CGFloat = 0
+    private var lists: [(ordered: Bool, next: Int)] = []
 
     func render(_ entries: [DictionarySearchEntry]) -> NSAttributedString {
-        for (index, entry) in entries.prefix(100).enumerated() {
+        // A renderer can be reused without retaining previous results or budgets.
+        output.setAttributedString(NSAttributedString(string: ""))
+        nodes = 0; images = 0; truncated = false
+        lists.removeAll()
+        imageCache.removeAll()
+        for (index, group) in DictionaryResultLayout.groups(entries).enumerated() {
             if output.length >= 100_000 { truncated = true; break }
-            resources = entry.resources
-            if index > 0 { append("\n────────────────────────────\n\n", color: .separatorColor) }
-            if entry.term.reading != entry.term.headword {
-                append(entry.term.reading + "\n", font: .systemFont(ofSize: 13), color: .secondaryLabelColor)
+            indent = 0; hanging = 0
+            if index > 0 { append("\n────────────────────────\n", font: .systemFont(ofSize: 11), color: .separatorColor) }
+            let headword = group.headword.isEmpty ? group.reading : group.headword
+            if group.reading != headword {
+                append(group.reading + "\n", font: .systemFont(ofSize: 14), color: .secondaryLabelColor)
             }
-            append(entry.term.headword + "\n", font: .systemFont(ofSize: 27, weight: .semibold), color: .controlAccentColor)
-            if let inflection = entry.inflection {
-                append("\(inflection.source) → \(inflection.base)\n", font: .systemFont(ofSize: 13), color: .secondaryLabelColor)
-                append(inflection.reasons.joined(separator: " → ") + "\n", font: .systemFont(ofSize: 11), color: .secondaryLabelColor)
+            append(headword + "\n", font: .systemFont(ofSize: 28, weight: .semibold))
+            var inflections = Set<DictionaryInflection>()
+            for entry in group.sources.flatMap(\.entries) {
+                if let inflection = entry.inflection, inflections.insert(inflection).inserted {
+                    append("\(inflection.source) → \(inflection.base)", font: .systemFont(ofSize: 12), color: .secondaryLabelColor)
+                    if !inflection.reasons.isEmpty {
+                        append(" · " + inflection.reasons.joined(separator: " → "), font: .systemFont(ofSize: 11), color: .secondaryLabelColor)
+                    }
+                    append("\n")
+                }
             }
-            append(" " + entry.dictionary.title + " ", font: .systemFont(ofSize: 11, weight: .medium), color: .secondaryLabelColor,
-                   background: .quaternaryLabelColor)
-            append("\n\n")
-            guard entry.term.definitionsJSON.utf8.count <= 512_000,
-                  let definitions = try? JSONSerialization.jsonObject(with: Data(entry.term.definitionsJSON.utf8)) as? [Any] else {
-                append("Definition is too large or cannot be displayed.\n", color: .secondaryLabelColor)
-                continue
-            }
-            for (number, definition) in definitions.enumerated() {
-                if definitions.count > 1 { append("\(number + 1). ", color: .secondaryLabelColor) }
-                glossary(definition)
+            for source in group.sources {
+                if output.length >= 100_000 { truncated = true; break }
+                indent = 0; hanging = 0
+                append(" " + source.dictionary.title + " ", font: .systemFont(ofSize: 11, weight: .medium), color: .secondaryLabelColor,
+                       background: .controlAccentColor.withAlphaComponent(0.10))
                 append("\n")
+                let sections: [(DictionarySearchEntry, [Any]?)] = source.entries.map { entry in
+                    let definitions = entry.term.definitionsJSON.utf8.count <= 512_000
+                        ? (try? JSONSerialization.jsonObject(with: Data(entry.term.definitionsJSON.utf8))) as? [Any] : nil
+                    return (entry, definitions)
+                }
+                let numbered = sections.reduce(0) { $0 + ($1.1?.count ?? 1) } > 1
+                var number = 0
+                for (entry, definitions) in sections {
+                    resources = entry.resources
+                    guard let definitions else {
+                        append("Definition is too large or cannot be displayed.\n", color: .secondaryLabelColor)
+                        continue
+                    }
+                    for (definitionIndex, definition) in definitions.enumerated() {
+                        guard output.length < 100_000 else { truncated = true; break }
+                        number += 1
+                        indent = 4; hanging = numbered ? 24 : 0
+                        if numbered { append("\(number).\t", font: .systemFont(ofSize: 13, weight: .medium), color: .secondaryLabelColor) }
+                        if definitionIndex == 0 {
+                            for tag in entry.term.definitionTags.prefix(12) {
+                                append(" " + String(tag.prefix(32)) + " ", font: .systemFont(ofSize: 11),
+                                       color: .secondaryLabelColor, background: .quaternaryLabelColor)
+                                append(" ")
+                            }
+                        }
+                        glossary(definition)
+                        if !output.string.hasSuffix("\n") { append("\n") }
+                    }
+                }
             }
         }
         if truncated { append("\n[Preview shortened for display.]", color: .secondaryLabelColor, force: true) }
-        return output
+        return NSAttributedString(attributedString: output)
     }
 
     private func append(_ text: String, font customFont: NSFont? = nil, color: NSColor = .labelColor,
                         background: NSColor? = nil, force: Bool = false) {
         guard force || output.length < 100_000 else { truncated = true; return }
         let paragraph = NSMutableParagraphStyle()
-        paragraph.lineSpacing = 4
+        paragraph.lineSpacing = 3
+        paragraph.paragraphSpacing = 6
+        paragraph.firstLineHeadIndent = indent
+        paragraph.headIndent = indent + hanging
+        paragraph.defaultTabInterval = 120
+        if hanging > 0 { paragraph.tabStops = [NSTextTab(textAlignment: .left, location: indent + hanging)] }
         var attributes: [NSAttributedString.Key: Any] = [.font: customFont ?? font, .foregroundColor: color, .paragraphStyle: paragraph]
         if let background { attributes[.backgroundColor] = background }
         let remaining = force ? 100 : max(0, 100_000 - output.length)
@@ -175,16 +219,53 @@ final class DictionaryDefinitionRenderer {
         guard let object = value as? [String: Any], let tag = object["tag"] as? String else { return }
         if tag == "img" { image(object, defaultHeight: 18); return }
         if tag == "br" { append("\n"); return }
-        if tag == "li" { append("\n• ") }
-        if ["div", "tr", "table", "details"].contains(tag), !output.string.hasSuffix("\n") { append("\n") }
+        if tag == "ul" || tag == "ol" {
+            if !output.string.hasSuffix("\n") { append("\n") }
+            let oldIndent = indent, oldHanging = hanging
+            indent += max(16, hanging); hanging = 20
+            lists.append((ordered: tag == "ol", next: 1))
+            if let content = object["content"] { node(content, depth: depth + 1) }
+            lists.removeLast()
+            indent = oldIndent; hanging = oldHanging
+            return
+        }
+        if tag == "li" {
+            if !output.string.hasSuffix("\n") { append("\n") }
+            if let list = lists.last, list.ordered {
+                append("\(list.next).\t", color: .secondaryLabelColor)
+                lists[lists.count - 1].next += 1
+            } else { append("•\t", color: .secondaryLabelColor) }
+        }
+        let block = ["div", "tr", "table", "details", "p", "blockquote"].contains(tag)
+        if block, !output.string.hasSuffix("\n"), !output.string.hasSuffix("\t") { append("\n") }
         if tag == "rt" { append("(") }
         let start = output.length
         if let content = object["content"] { node(content, depth: depth + 1) }
-        if let style = object["style"] as? [String: Any], style["fontWeight"] as? String == "bold", output.length > start {
-            output.addAttribute(.font, value: NSFont.systemFont(ofSize: 16, weight: .semibold), range: NSRange(location: start, length: output.length - start))
+        if output.length > start {
+            let range = NSRange(location: start, length: output.length - start)
+            let style = object["style"] as? [String: Any]
+            if ["b", "strong", "th"].contains(tag) || style?["fontWeight"] as? String == "bold" {
+                output.enumerateAttribute(.font, in: range) { value, run, _ in
+                    if let font = value as? NSFont {
+                        output.addAttribute(.font, value: NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask), range: run)
+                    }
+                }
+            }
+            if ["i", "em"].contains(tag) || style?["fontStyle"] as? String == "italic" {
+                output.enumerateAttribute(.font, in: range) { value, run, _ in
+                    if let font = value as? NSFont {
+                        output.addAttribute(.font, value: NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask), range: run)
+                    }
+                }
+            }
+            if tag == "small" || style?["fontSize"] as? String == "0.8em" {
+                output.addAttributes([.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.secondaryLabelColor], range: range)
+            }
+            if tag == "u" { output.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range) }
         }
         if tag == "rt" { append(")") }
         if ["td", "th"].contains(tag) { append("\t") }
+        if (block || tag == "li"), !output.string.hasSuffix("\n") { append("\n") }
         // Links are rendered as text only. No dictionary URL is opened or fetched.
     }
 

@@ -87,30 +87,39 @@ final class DictionaryCapturePanel {
 
 private struct DictionaryCaptureView: View {
     @ObservedObject var model: DictionaryCaptureModel
+    @State private var sourceExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("OCR → Dictionary", systemImage: "book.closed").font(.headline)
-                Spacer()
-                if model.isRecognizing || model.isSearching { ProgressView().controlSize(.small) }
-            }
-            Text("OCR text · Click a word to look it up")
-                .font(.caption).foregroundStyle(.secondary)
-            DictionarySourceText(model: model)
-                .frame(height: 110)
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator, lineWidth: 1).allowsHitTesting(false))
-            if let query = model.query {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Lookup:").foregroundStyle(.secondary)
-                    Text(query).fontWeight(.semibold).textSelection(.enabled)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label(model.query.map { "Lookup: \($0)" } ?? "OCR text · Click a word", systemImage: "book.closed")
+                    .font(.callout).lineLimit(1)
+                Spacer(minLength: 0)
+                if model.isRecognizing || model.isSearching {
+                    ProgressView().controlSize(.small)
+                } else if !model.entries.isEmpty {
+                    Text("\(model.entries.count) entries").font(.caption).foregroundStyle(.secondary)
+                }
+                if DictionarySourceLayout.canExpand(model.source) {
+                    Button {
+                        sourceExpanded.toggle()
+                    } label: {
+                        Label(sourceExpanded ? "Collapse text" : "Expand text",
+                              systemImage: sourceExpanded ? "chevron.up" : "chevron.down")
+                    }
+                    .font(.caption).buttonStyle(.borderless)
+                    .help("Expand OCR text to click another word. Drag text to select and copy.")
                 }
             }
-            if !model.baseForms.isEmpty {
-                Text("Base forms: " + model.baseForms.joined(separator: " / "))
-                    .font(.callout).textSelection(.enabled).lineLimit(2)
+            .help("Offline dictionary · No automatic copying or translation")
+            if !model.source.isEmpty {
+                DictionarySourceText(model: model, expanded: sourceExpanded)
+                    .frame(height: DictionarySourceLayout.height(expanded: sourceExpanded))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator, lineWidth: 1).allowsHitTesting(false))
             }
-            Text(model.status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            if !model.isRecognizing && (model.entries.isEmpty || model.isSearching) {
+                Text(model.status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+            }
             Divider()
             if model.isRecognizing {
                 VStack { Spacer(); ProgressView("Recognizing selected text locally…"); Spacer() }
@@ -118,11 +127,9 @@ private struct DictionaryCaptureView: View {
             } else {
                 DictionaryResultsText(entries: model.entries).frame(maxHeight: .infinity)
             }
-            Divider()
-            Text("Local only · No automatic copying or translation · Japanese deinflection")
-                .font(.caption).foregroundStyle(.secondary)
         }
-        .padding(14)
+        .padding(10)
+        .onChange(of: model.source) { _, _ in sourceExpanded = false }
     }
 }
 
@@ -154,11 +161,12 @@ private final class DictionarySourceTextView: NSTextView {
 
 private struct DictionarySourceText: NSViewRepresentable {
     @ObservedObject var model: DictionaryCaptureModel
+    let expanded: Bool
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
-        let text = DictionarySourceTextView(frame: NSRect(x: 0, y: 0, width: 520, height: 110))
+        let text = DictionarySourceTextView(frame: NSRect(x: 0, y: 0, width: 520, height: 44))
         text.isEditable = false
         text.isSelectable = true
         text.isRichText = false
@@ -183,6 +191,7 @@ private struct DictionarySourceText: NSViewRepresentable {
         text.onWordClick = { [weak model] in model?.lookup(at: $0) }
         if text.string != model.source {
             text.string = model.source
+            text.sizeToFit()
             text.scrollToBeginningOfDocument(nil)
         }
         if context.coordinator.selectedRange != model.selectedRange {
@@ -194,8 +203,15 @@ private struct DictionarySourceText: NSViewRepresentable {
                 text.setSelectedRange(NSRange(location: 0, length: 0))
             }
         }
+        if context.coordinator.expanded != expanded {
+            context.coordinator.expanded = expanded
+            text.scrollRangeToVisible(text.selectedRange())
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var selectedRange: NSRange? }
+    final class Coordinator {
+        var selectedRange: NSRange?
+        var expanded = false
+    }
 }

@@ -111,8 +111,12 @@ text or changes the clipboard automatically. Results are limited to 30 entries.
    word in the read-only OCR text** to look it up. The matched text is selected,
    and the **Lookup** label confirms the query.
 
-The panel shows readings, dictionary labels, definitions, and supported inline
-images. Drag its title bar or resize it; scroll long OCR text and definitions.
+The panel groups identical headwords/readings, with the reading above the headword
+and dictionary badges above numbered, indented senses. Dictionary-provided tags
+appear as small badges; supported inline images and structured lists stay native.
+The original text starts in a compact strip: use **Expand text / Collapse text**
+for longer or multiline OCR. Drag the title bar or resize the panel; scroll long
+original text and definitions.
 Dragging within the OCR text selects text normally for explicit copying. Click
 outside or the close button to dismiss; after clicking inside the panel, Escape
 also closes it. Escape is not intercepted globally in the source app.
@@ -144,7 +148,7 @@ Japanese lookup uses Yomitan-derived rules to restore possible dictionary forms:
 Exact original matches take priority for each candidate span. Otherwise, derived
 forms are checked against the dictionary’s preserved rule tags (`v1`, `v5`,
 `adj-i`, etc.). The panel keeps the original text selected and shows the base
-forms; each derived entry displays the transformation and its reasons. Multiple
+forms; each headword group displays its distinct transformations and reasons once. Multiple
 plausible base forms can appear. The same behavior works in Settings lookup.
 
 No reimport is needed for dictionaries already installed by Snipper. Entries
