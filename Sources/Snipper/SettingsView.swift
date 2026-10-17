@@ -5,6 +5,8 @@ struct SettingsView: View {
     @ObservedObject var shortcuts: GlobalShortcuts
     @ObservedObject var capture: CaptureCoordinator
     @ObservedObject var translator: TranslationCoordinator
+    @ObservedObject var lookup: DictionaryCaptureCoordinator
+    let dictionaryStore: DictionaryStore
     @State private var apiKey = ""
     @State private var keyStatus = "Key has not been checked."
     @State private var confirmConnectionTest = false
@@ -17,7 +19,7 @@ struct SettingsView: View {
                 .tabItem { Label("General", systemImage: "gearshape") }
             translation
                 .tabItem { Label("Translation", systemImage: "character.bubble") }
-            DictionariesView()
+            DictionariesView(store: dictionaryStore)
                 .tabItem { Label("Dictionaries", systemImage: "books.vertical") }
         }
         .padding(20)
@@ -37,6 +39,7 @@ struct SettingsView: View {
             Section("Keyboard shortcuts") {
                 shortcutRow("Select region", shortcut: $settings.captureShortcut)
                 shortcutRow("Recapture region", shortcut: $settings.recaptureShortcut)
+                shortcutRow("Dictionary region", shortcut: $settings.lookupShortcut)
                 if let warning = settings.shortcutWarning {
                     Text(warning).foregroundStyle(.red)
                 }
@@ -46,7 +49,7 @@ struct SettingsView: View {
                 Text(shortcuts.lastReceived)
                     .font(.caption).foregroundStyle(.secondary)
                 Button("Retry Shortcut Registration") { shortcuts.register(settings) }
-                Text("Capture selects a rectangle; recapture reuses your last selection. Keys use physical ANSI keyboard positions.")
+                Text("Capture selects a rectangle; recapture reuses it. Dictionary lookup uses its own region selection without copying or translating. Keys use physical ANSI keyboard positions.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Local OCR") {
@@ -54,7 +57,12 @@ struct SettingsView: View {
                 Text("Priority: en-US, ja-JP. Enter comma-separated Vision language codes, or leave blank for defaults. Automatic language detection is enabled; unsupported codes produce an OCR error.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("MVP behavior") {
+            Section("On-screen dictionary") {
+                Text(lookup.status).font(.caption).textSelection(.enabled)
+                Text("Press Control–Option–Z, release the keys, then drag a region with the left mouse button. OCR progress appears in the dictionary panel. A single word is looked up automatically; click words in longer OCR text to look them up. Escape/right-click cancels selection. Import a dictionary first. No deinflection yet.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Capture behavior") {
                 Text(capture.status)
                     .textSelection(.enabled)
                 Text("Successful OCR copies original text and opens a read-only result panel without activating Snipper. Pin keeps its position. Cloud translation is optional. Original text remains useful if translation fails and translation is copied only on explicit request.")

@@ -13,6 +13,11 @@ struct DictionarySearchEntry: Identifiable, Sendable {
     let resources: URL
 }
 
+struct DictionaryCandidateMatch: Sendable {
+    let query: String
+    let entries: [DictionarySearchEntry]
+}
+
 struct DictionaryImportLimits: Sendable {
     var archiveBytes = 1_000_000_000
     var expandedBytes = 2_000_000_000
@@ -110,6 +115,25 @@ actor DictionaryStore {
             if results.count >= maximum { break }
         }
         return results
+    }
+
+    func searchCandidateMatch(_ candidates: [String]) throws -> DictionaryCandidateMatch? {
+        let installed = try dictionaries()
+        let databases = try installed.map { dictionary in
+            try DictionaryDatabase(url: root.appendingPathComponent(dictionary.id).appendingPathComponent("dictionary.sqlite"), create: false)
+        }
+        for candidate in candidates.prefix(80) where !candidate.isEmpty && candidate.count <= 48 {
+            try Task.checkCancellation()
+            var entries: [DictionarySearchEntry] = []
+            for (index, dictionary) in installed.enumerated() {
+                let terms = try databases[index].lookup(candidate, limit: 30 - entries.count)
+                let resources = root.appendingPathComponent(dictionary.id).appendingPathComponent("resources")
+                entries += terms.map { DictionarySearchEntry(dictionary: dictionary, term: $0, resources: resources) }
+                if entries.count >= 30 { break }
+            }
+            if !entries.isEmpty { return DictionaryCandidateMatch(query: candidate, entries: entries) }
+        }
+        return nil
     }
 
     // Exact matching only: no normalization or deinflection yet.

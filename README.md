@@ -11,6 +11,7 @@ translation. Built with Swift, AppKit, and SwiftUI, with no third-party dependen
 - Select a screen region with a global shortcut, or recapture the last region.
 - Automatically copy the **original text** as plain text with useful line breaks.
 - Recognize English, Japanese—including vertical text—and other Vision-supported languages.
+- Press **⌃⌥Z** and drag a region for local OCR and dictionary lookup.
 - View results in a reusable floating panel without activating Snipper.
 - Drag, resize, or pin the panel; reopen the latest result from the menu bar.
 - Translate automatically or on demand into Traditional Chinese, Japanese, or English.
@@ -45,13 +46,14 @@ Rebuilds may prompt macOS to request Screen Recording or Keychain access again.
 | --- | --- |
 | **⇧⌘2** | Select a region and recognize its text |
 | **⇧⌘1** | Recapture the last selected region |
+| **⌃⌥Z** | Select a region for OCR and local dictionary lookup (no automatic copy) |
 | **Escape / right-click** during selection | Cancel without changing the clipboard |
 
 On first capture, grant Screen Recording access in **System Settings → Privacy &
 Security → Screen & System Audio Recording**. Quit and reopen Snipper if macOS
 requests it. Accessibility and Input Monitoring permissions are not required.
 
-After recognition, the original text is copied and displayed immediately. Drag the
+For normal capture (⇧⌘2 / ⇧⌘1), the original text is copied and displayed immediately. Drag the
 panel by its title bar or use **Pin position** to keep it in place across captures.
 Click inside the text, then press Escape to close; Escape is not intercepted while
 you work in another app. **Show Last Result** reopens the latest result.
@@ -96,9 +98,38 @@ headwords, dictionary labels, definitions, and inline local images. Show Results
 reopens the popup; Escape or clicking outside dismisses it. Lookup never uploads
 text or changes the clipboard automatically. Results are limited to 30 entries.
 
-On-screen dictionary lookup and deinflection are not available yet—search the
-base form, not an inflected sentence. Terms, tags, definition JSON, and
-PNG/JPEG/GIF/WebP images are preserved. The preview supports basic structured
+### OCR → dictionary
+
+1. Import a dictionary, then press **⌃⌥Z** (Control–Option–Z).
+2. Release the keys and **drag a rectangle with the left mouse button** around the
+   text you want to read. Escape/right-click cancels.
+3. Release the mouse. The dictionary panel shows **OCR recognition progress**.
+4. A single selected word is looked up automatically. For longer text, **click a
+   word in the read-only OCR text** to look it up. The matched text is selected,
+   and the **Lookup** label confirms the query.
+
+The panel shows readings, dictionary labels, definitions, and supported inline
+images. Drag its title bar or resize it; scroll long OCR text and definitions.
+Dragging within the OCR text selects text normally for explicit copying. Click
+outside or the close button to dismiss; after clicking inside the panel, Escape
+also closes it. Escape is not intercepted globally in the source app.
+
+This workflow supports horizontal and vertical Japanese, runs entirely locally,
+and **does not automatically copy text or start translation**. It does not replace
+the last normal capture/result or remembered recapture region. Screenshots are
+transient, and closing the dictionary panel discards its OCR text and results.
+There is no continuous mouse tracking or background OCR loop.
+
+Screen Recording permission and an installed dictionary are required. The shortcut
+is configurable in General settings. Shortcuts during selection/capture/OCR are
+ignored; starting normal capture cancels dictionary capture. Only one display can
+be selected at a time. **Deinflection is not available yet**—use dictionary-form
+words. OCR errors, small furigana, cropped words, and unusual layouts may prevent
+matching. Clicking another word searches the existing OCR text without recapturing.
+
+### Format support
+
+Terms, tags, definition JSON, and PNG/JPEG/GIF/WebP images are preserved. The preview supports basic structured
 content, not full Yomitan styling; links are text-only and unusually large previews
 are shortened. Frequency, pitch-accent, kanji banks, and custom styles are not
 imported. Duplicate titles are rejected; delete the installed version before

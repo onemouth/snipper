@@ -8,6 +8,7 @@ enum CaptureAction { case selectRegion, recapture }
 @MainActor
 final class GlobalShortcuts: ObservableObject {
     var onAction: ((CaptureAction) -> Void)?
+    var onLookup: (() -> Void)?
     @Published private(set) var registrationStatus = "Shortcuts not registered."
     @Published private(set) var lastReceived = "No shortcut received yet."
     @Published private(set) var isRegistered = false
@@ -39,7 +40,7 @@ final class GlobalShortcuts: ObservableObject {
             return
         }
         register(settings)
-        subscription = settings.$captureShortcut.combineLatest(settings.$recaptureShortcut)
+        subscription = settings.$captureShortcut.combineLatest(settings.$recaptureShortcut, settings.$lookupShortcut)
             .dropFirst()
             .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
             .sink { [weak self, weak settings] _ in
@@ -57,7 +58,7 @@ final class GlobalShortcuts: ObservableObject {
             registrationStatus = "Shortcuts disabled: \(warning)"
             return
         }
-        for (index, shortcut) in [settings.captureShortcut, settings.recaptureShortcut].enumerated() {
+        for (index, shortcut) in [settings.captureShortcut, settings.recaptureShortcut, settings.lookupShortcut].enumerated() {
             guard let keyCode = Self.keyCodes[shortcut.key],
                   let modifiers = ShortcutModifiers(rawValue: shortcut.modifiers) else {
                 registrationStatus = "Shortcuts disabled: unsupported key."
@@ -68,16 +69,16 @@ final class GlobalShortcuts: ObservableObject {
             let status = RegisterEventHotKey(keyCode, Self.carbonModifiers(modifiers), EventHotKeyID(signature: Self.signature, id: UInt32(index + 1)), GetApplicationEventTarget(), 0, &reference)
             guard status == noErr, let reference else {
                 unregister()
-                let action = index == 0 ? "Capture" : "Recapture"
+                let action = ["Capture", "Recapture", "Dictionary lookup"][index]
                 registrationStatus = status == eventHotKeyExistsErr
-                    ? "\(action) shortcut is already in use. Change it or quit the other app, then Retry. Both shortcuts are disabled."
-                    : "\(action) shortcut registration failed (\(status)). Both shortcuts are disabled."
+                    ? "\(action) shortcut is already in use. Change it or quit the other app, then Retry. All shortcuts are disabled."
+                    : "\(action) shortcut registration failed (\(status)). All shortcuts are disabled."
                 return
             }
             hotKeys.append(reference)
         }
         isRegistered = true
-        registrationStatus = "Both shortcuts enabled."
+        registrationStatus = "All three shortcuts enabled."
     }
 
     func stop() {
@@ -87,6 +88,7 @@ final class GlobalShortcuts: ObservableObject {
         if let handler { RemoveEventHandler(handler) }
         handler = nil
         onAction = nil
+        onLookup = nil
     }
 
     private func unregister() {
@@ -96,11 +98,12 @@ final class GlobalShortcuts: ObservableObject {
     }
 
     private func receive(_ id: UInt32) {
-        guard isRegistered, id == 1 || id == 2 else { return }
+        guard isRegistered, (1...3).contains(id) else { return }
         receivedCount += 1
-        let message = id == 1 ? "Capture shortcut received" : "Recapture shortcut received"
+        let message = ["Capture shortcut received", "Recapture shortcut received", "Dictionary lookup shortcut received"][Int(id - 1)]
         lastReceived = "\(message) · #\(receivedCount)"
-        onAction?(id == 1 ? .selectRegion : .recapture)
+        if id == 3 { onLookup?() }
+        else { onAction?(id == 1 ? .selectRegion : .recapture) }
     }
 
     private static func carbonModifiers(_ modifiers: ShortcutModifiers) -> UInt32 {

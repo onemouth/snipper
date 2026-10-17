@@ -96,12 +96,54 @@ Manual checks in **Settings → Dictionaries**:
 - Test in light/dark appearance. Dictionary HTML-like text is literal, links do
   not open/fetch, and basic structured formatting/images render without scripts.
 - Check capture and translation still work. Search/import must not modify
-  credentials or cloud consent. On-screen lookup is not implemented yet.
+  credentials or cloud consent.
 
 Imported data lives under `~/Library/Application Support/Snipper/Dictionaries/`.
 A separate SQLite database and resources folder are published atomically for each
 dictionary. Interrupted staging imports are removed on first dictionary access
 after restarting. Do not run multiple Snipper copies against the same storage.
+
+## OCR → dictionary region selection
+
+Import a term dictionary, then use harmless text in a separate app:
+
+- Press **⌃⌥Z**, release all keys, and drag a rectangle with the left mouse button.
+  The selection overlay must remain available without holding modifiers.
+- Escape/right-click/tiny selection cancels without changing the clipboard.
+- After releasing the mouse, the dictionary panel should show persistent OCR
+  progress, followed by the recognized original text. No source-app activation
+  should occur merely because the result appears.
+- Select a single known word: definitions should load automatically. Select a
+  sentence or multiple lines: click words in the OCR source to change definitions.
+  Clicking does not recapture the screen. No deinflection is implemented yet.
+- Check the Lookup label and source selection identify the actual matched word,
+  including repeated words, Japanese compounds, and text after emoji/combining marks.
+- Drag over source text to select/copy normally; source text must remain read-only.
+  Scroll long text/definitions, resize/drag the panel, and check inline images.
+- Click punctuation or an absent word: clear old definitions/selection and show
+  safe guidance. Blank captures should show an OCR error rather than old entries.
+- Rapidly click different words: old responses must not replace newer matches.
+  Close while OCR/search is pending: late results must not reopen the panel.
+- Click outside/close or Escape within the panel to dismiss it and discard its
+  source/results. Escape in the source app is not intercepted globally.
+- Copy a sentinel first: dictionary capture/search must leave it unchanged even
+  with cloud permission and automatic translation enabled. No translation should start.
+- Start normal ⇧⌘2 capture during dictionary capture: cancel dictionary work and
+  preserve normal capture behavior. Lookup during normal capture is ignored.
+  Dictionary capture must not replace the normal result or last recapture region.
+- Cover source text with the normal OCR result panel: dictionary selection/capture
+  should hide it, then restore it unchanged without cancelling its translation.
+- Repeat horizontal/vertical Japanese and Retina/external/negative-origin displays.
+  Selection remains on one display. Display changes cancel selection or dismiss
+  the dictionary panel safely.
+- With no dictionary installed, ask for import before selection or Screen Recording.
+  Check permission denial, shortcut conflicts, and custom dictionary shortcut persistence.
+
+Automated coverage includes word candidates, exact matched occurrence, UTF-16
+conversion, single-word auto lookup, clickable multiword model state, stale-result
+rejection, safe failures, OCR-to-SQLite matching, and existing capture geometry and
+horizontal/vertical OCR. Native click hit-testing, permissions, focus, and actual
+game/full-screen behavior still need manual checks.
 
 ## Displays and full-screen apps
 

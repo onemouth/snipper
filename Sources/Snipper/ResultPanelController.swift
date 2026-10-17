@@ -62,6 +62,13 @@ final class ResultPanelController: NSObject, NSWindowDelegate {
         panel?.orderOut(nil)
     }
 
+    /// Dictionary capture hides our result without changing translation state.
+    func hideForDictionaryCapture() -> Bool {
+        let wasVisible = panel?.isVisible == true
+        panel?.orderOut(nil)
+        return wasVisible
+    }
+
     func restoreAfterCancelledOrFailedCapture() {
         guard restoreAfterCapture else { return }
         restoreAfterCapture = false

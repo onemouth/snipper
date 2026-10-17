@@ -18,9 +18,13 @@ enum SnipperApp {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private let settings = AppSettings()
     private let shortcuts = GlobalShortcuts()
+    private let dictionaryStore = DictionaryStore()
     private lazy var translator = TranslationCoordinator(settings: settings)
     private lazy var resultPanel = ResultPanelController(settings: settings, translator: translator)
     private lazy var captureCoordinator = CaptureCoordinator(settings: settings, resultPanel: resultPanel)
+    private lazy var dictionaryLookup = DictionaryCaptureCoordinator(settings: settings, store: dictionaryStore, resultPanel: resultPanel) { [weak self] in
+        self?.captureCoordinator.ensurePermission() ?? false
+    }
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
 
@@ -54,26 +58,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         menu.addItem(quit)
         item.menu = menu
         statusItem = item
-        shortcuts.onAction = { [weak self] action in self?.captureCoordinator.perform(action) }
+        shortcuts.onAction = { [weak self] action in self?.performCapture(action) }
+        shortcuts.onLookup = { [weak self] in
+            guard let self, !self.captureCoordinator.isBusy else { return }
+            self.dictionaryLookup.perform()
+        }
         shortcuts.start(settings: settings)
     }
 
     @objc private func captureRegion() {
         Task { @MainActor in
             await Task.yield()
-            captureCoordinator.perform(.selectRegion)
+            performCapture(.selectRegion)
         }
     }
 
     @objc private func recaptureRegion() {
         Task { @MainActor in
             await Task.yield()
-            captureCoordinator.perform(.recapture)
+            performCapture(.recapture)
         }
+    }
+
+    private func performCapture(_ action: CaptureAction) {
+        dictionaryLookup.cancel()
+        captureCoordinator.perform(action)
     }
 
     @objc private func showLastResult() {
         guard !captureCoordinator.isBusy else { return }
+        dictionaryLookup.cancel()
         resultPanel.showLastResult()
     }
 
@@ -85,6 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     }
 
     @objc private func showSettings() {
+        dictionaryLookup.cancel()
         if settingsWindow == nil {
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 600, height: 530),
@@ -94,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             )
             window.title = "Snipper Settings"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: SettingsView(settings: settings, shortcuts: shortcuts, capture: captureCoordinator, translator: translator))
+            window.contentView = NSHostingView(rootView: SettingsView(settings: settings, shortcuts: shortcuts, capture: captureCoordinator, translator: translator, lookup: dictionaryLookup, dictionaryStore: dictionaryStore))
             window.center()
             settingsWindow = window
         }
@@ -108,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
 
     func applicationWillTerminate(_ notification: Notification) {
         shortcuts.stop()
+        dictionaryLookup.cancel()
         captureCoordinator.stop()
     }
 

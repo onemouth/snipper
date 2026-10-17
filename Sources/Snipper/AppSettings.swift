@@ -45,6 +45,7 @@ final class AppSettings: ObservableObject {
     @Published var recognitionLanguages: String { didSet { defaults.set(recognitionLanguages, forKey: "recognitionLanguages") } }
     @Published var captureShortcut: ShortcutConfiguration { didSet { save(captureShortcut, key: "captureShortcut") } }
     @Published var recaptureShortcut: ShortcutConfiguration { didSet { save(recaptureShortcut, key: "recaptureShortcut") } }
+    @Published var lookupShortcut: ShortcutConfiguration { didSet { save(lookupShortcut, key: "lookupShortcut") } }
 
     nonisolated static let openRouterBaseURL = URL(string: "https://openrouter.ai/api/v1")!
 
@@ -57,16 +58,17 @@ final class AppSettings: ObservableObject {
         recognitionLanguages = defaults.string(forKey: "recognitionLanguages") ?? "en-US, ja-JP"
         captureShortcut = Self.loadShortcut(defaults, key: "captureShortcut", fallbackKey: "2", fallbackModifiers: .commandShift)
         recaptureShortcut = Self.loadShortcut(defaults, key: "recaptureShortcut", fallbackKey: "1", fallbackModifiers: .commandShift)
+        lookupShortcut = Self.loadShortcut(defaults, key: "lookupShortcut", fallbackKey: "z", fallbackModifiers: .controlOption)
     }
 
     func credentialsDidChange() { credentialsVersion = UUID() }
 
     var shortcutWarning: String? {
-        guard captureShortcut.isValid, recaptureShortcut.isValid else {
+        guard captureShortcut.isValid, recaptureShortcut.isValid, lookupShortcut.isValid else {
             return "Use one letter (A–Z) or digit (0–9) for each shortcut."
         }
-        guard captureShortcut != recaptureShortcut else {
-            return "Capture and recapture must use different shortcuts."
+        guard captureShortcut != recaptureShortcut, captureShortcut != lookupShortcut, recaptureShortcut != lookupShortcut else {
+            return "Capture, recapture, and dictionary lookup must use different shortcuts."
         }
         return nil
     }

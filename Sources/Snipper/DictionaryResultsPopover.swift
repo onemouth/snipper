@@ -4,6 +4,7 @@ import SwiftUI
 
 struct DictionaryResultsPopover: View {
     let entries: [DictionarySearchEntry]
+    var query: String? = nil
     let dismiss: () -> Void
 
     var body: some View {
@@ -19,6 +20,15 @@ struct DictionaryResultsPopover: View {
                     .keyboardShortcut(.cancelAction)
             }
             .padding(14)
+            if let query {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Lookup:").foregroundStyle(.secondary)
+                    Text(query).fontWeight(.semibold).textSelection(.enabled)
+                    Spacer()
+                }
+                .font(.callout)
+                .padding(.horizontal, 14).padding(.bottom, 10)
+            }
             Divider()
             DictionaryResultsText(entries: entries)
             Divider()
@@ -31,14 +41,27 @@ struct DictionaryResultsPopover: View {
     }
 }
 
-private struct DictionaryResultsText: NSViewRepresentable {
+@MainActor
+private final class DictionaryDefinitionTextView: NSTextView {
+    override var needsPanelToBecomeKey: Bool { true }
+    override func cancelOperation(_ sender: Any?) {
+        if window is NSPanel { window?.performClose(sender) }
+        else { super.cancelOperation(sender) }
+    }
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 { cancelOperation(nil) }
+        else { super.keyDown(with: event) }
+    }
+}
+
+struct DictionaryResultsText: NSViewRepresentable {
     let entries: [DictionarySearchEntry]
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
-        let text = NSTextView(frame: NSRect(x: 0, y: 0, width: 520, height: 380))
+        let text = DictionaryDefinitionTextView(frame: NSRect(x: 0, y: 0, width: 520, height: 380))
         text.minSize = .zero
         text.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         text.isEditable = false

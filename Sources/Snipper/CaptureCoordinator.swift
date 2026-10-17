@@ -81,7 +81,7 @@ final class CaptureCoordinator: ObservableObject {
         lastRegion = nil
     }
 
-    private func ensurePermission() -> Bool {
+    func ensurePermission() -> Bool {
         if CGPreflightScreenCaptureAccess() { return true }
         if !permissionRequested {
             permissionRequested = true
@@ -89,7 +89,7 @@ final class CaptureCoordinator: ObservableObject {
         }
         status = "Screen Recording permission required. Clipboard unchanged."
         let alert = NSAlert()
-        alert.messageText = "Allow Snipper to capture selected screen regions"
+        alert.messageText = "Allow Snipper to read text from your screen"
         alert.informativeText = "Enable Snipper in System Settings → Privacy & Security → Screen & System Audio Recording, then quit and reopen Snipper if macOS requests it. Screenshots are processed locally and are not saved."
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")

@@ -21,7 +21,33 @@ struct AppSettingsTests {
             #expect(settings.model.isEmpty)
             #expect(settings.captureShortcut == ShortcutConfiguration(modifiers: ShortcutModifiers.commandShift.rawValue, key: "2"))
             #expect(settings.recaptureShortcut == ShortcutConfiguration(modifiers: ShortcutModifiers.commandShift.rawValue, key: "1"))
+            #expect(settings.lookupShortcut == ShortcutConfiguration(modifiers: ShortcutModifiers.controlOption.rawValue, key: "z"))
             #expect(settings.shortcutWarning == nil)
+        }
+    }
+
+    @Test func lookupShortcutPersistsAndConflictsAreValidated() {
+        withDefaults { defaults in
+            let settings = AppSettings(defaults: defaults)
+            settings.lookupShortcut = settings.captureShortcut
+            #expect(settings.shortcutWarning != nil)
+            settings.lookupShortcut = settings.recaptureShortcut
+            #expect(settings.shortcutWarning != nil)
+            settings.lookupShortcut = ShortcutConfiguration(modifiers: ShortcutModifiers.controlOption.rawValue, key: "k")
+            #expect(settings.shortcutWarning == nil)
+            #expect(AppSettings(defaults: defaults).lookupShortcut == settings.lookupShortcut)
+        }
+    }
+
+    @Test func addingLookupShortcutPreservesExistingCaptureShortcuts() {
+        withDefaults { defaults in
+            let settings = AppSettings(defaults: defaults)
+            settings.captureShortcut.key = "a"
+            settings.recaptureShortcut.key = "b"
+            let restored = AppSettings(defaults: defaults)
+            #expect(restored.captureShortcut.key == "a")
+            #expect(restored.recaptureShortcut.key == "b")
+            #expect(restored.lookupShortcut.key == "z")
         }
     }
 

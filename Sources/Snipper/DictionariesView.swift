@@ -137,7 +137,12 @@ final class DictionariesModel: ObservableObject {
 }
 
 struct DictionariesView: View {
-    @StateObject private var model = DictionariesModel()
+    @StateObject private var model: DictionariesModel
+
+    init(store: DictionaryStore) {
+        _model = StateObject(wrappedValue: DictionariesModel(store: store))
+    }
+
     @State private var pendingDeletion: ImportedDictionary?
     @State private var searchText = ""
     @State private var searchDictionaryID = ""
@@ -161,7 +166,7 @@ struct DictionariesView: View {
                     Button("Search") { search() }
                         .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSearching)
                         .popover(isPresented: $model.showSearchResults, arrowEdge: .trailing) {
-                            DictionaryResultsPopover(entries: model.searchResults) {
+                            DictionaryResultsPopover(entries: model.searchResults, query: searchText.trimmingCharacters(in: .whitespacesAndNewlines)) {
                                 model.showSearchResults = false
                             }
                         }
@@ -176,7 +181,7 @@ struct DictionariesView: View {
                         }
                     }
                 }
-                Text("Exact headword/reading lookup · Local only · No clipboard changes. Deinflection and on-screen lookup are not available yet.")
+                Text("Exact headword/reading lookup · Local only · No clipboard changes. Deinflection is not available yet.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .disabled(model.isBusy || model.dictionaries.isEmpty)
