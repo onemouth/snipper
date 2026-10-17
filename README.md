@@ -4,7 +4,8 @@ Capture text from your screen, copy it instantly, and optionally translate it—
 from the macOS menu bar.
 
 Snipper uses Apple Vision for on-device OCR and OpenRouter for optional cloud
-translation. Built with Swift, AppKit, and SwiftUI, with no third-party dependencies.
+translation. Built with Swift, AppKit, SwiftUI, and system libraries, with no
+third-party package dependencies.
 
 ## Features
 
@@ -12,6 +13,7 @@ translation. Built with Swift, AppKit, and SwiftUI, with no third-party dependen
 - Automatically copy the **original text** as plain text with useful line breaks.
 - Recognize English, Japanese—including vertical text—and other Vision-supported languages.
 - Press **⌃⌥Z** and drag a region for local OCR and dictionary lookup.
+- Look up Japanese inflected verbs and adjectives using Yomitan-derived offline rules.
 - View results in a reusable floating panel without activating Snipper.
 - Drag, resize, or pin the panel; reopen the latest result from the menu bar.
 - Translate automatically or on demand into Traditional Chinese, Japanese, or English.
@@ -91,8 +93,9 @@ Yomitan format 3 term dictionary ZIP. Imports run locally with progress and
 cancellation. The list shows each dictionary’s title, revision, entry count, and
 image count; Delete removes the imported copy, not your original ZIP.
 
-Use **Test dictionary lookup** in the same tab to search an exact headword or
-reading, such as `猫` or `ねこ`, across all dictionaries or a selected dictionary.
+Use **Test dictionary lookup** in the same tab to search a headword, reading, or
+Japanese inflected form, such as `猫`, `ねこ`, or `食べなかった`, across all
+dictionaries or a selected dictionary.
 Press Return or click Search for a selectable results popover with readings,
 headwords, dictionary labels, definitions, and inline local images. Show Results
 reopens the popup; Escape or clicking outside dismisses it. Lookup never uploads
@@ -123,13 +126,38 @@ There is no continuous mouse tracking or background OCR loop.
 Screen Recording permission and an installed dictionary are required. The shortcut
 is configurable in General settings. Shortcuts during selection/capture/OCR are
 ignored; starting normal capture cancels dictionary capture. Only one display can
-be selected at a time. **Deinflection is not available yet**—use dictionary-form
-words. OCR errors, small furigana, cropped words, and unusual layouts may prevent
-matching. Clicking another word searches the existing OCR text without recapturing.
+be selected at a time. OCR errors, small furigana, cropped words, and unusual layouts
+may prevent matching. Clicking another word searches the existing OCR text without
+recapturing.
+
+### Japanese deinflection
+
+Japanese lookup uses Yomitan-derived rules to restore possible dictionary forms:
+
+| Captured text | Base form |
+| --- | --- |
+| 食べた / 食べなかった | 食べる |
+| 読んでいる | 読む |
+| 行きました | 行く |
+| 高かった | 高い |
+
+Exact original matches take priority for each candidate span. Otherwise, derived
+forms are checked against the dictionary’s preserved rule tags (`v1`, `v5`,
+`adj-i`, etc.). The panel keeps the original text selected and shows the base
+forms; each derived entry displays the transformation and its reasons. Multiple
+plausible base forms can appear. The same behavior works in Settings lookup.
+
+No reimport is needed for dictionaries already installed by Snipper. Entries
+without compatible rule tags remain searchable by exact headword/reading but do
+not qualify for derived matches. Only Japanese deinflection is supported; this is
+not a complete port of Yomitan’s language processing or normalization. Expansion
+is bounded to 512 states / 16 steps / 48 characters per candidate. All processing
+is offline, with no clipboard or cloud side effects.
 
 ### Format support
 
-Terms, tags, definition JSON, and PNG/JPEG/GIF/WebP images are preserved. The preview supports basic structured
+Terms, tags, definition JSON, and PNG/JPEG/GIF/WebP images are preserved.
+The preview supports basic structured
 content, not full Yomitan styling; links are text-only and unusually large previews
 are shortened. Frequency, pitch-accent, kanji banks, and custom styles are not
 imported. Duplicate titles are rejected; delete the installed version before
@@ -186,9 +214,34 @@ small C interop targets. Private dictionary ZIPs in `testdata/` and generated SQ
 files are ignored by Git. The optional real-dictionary import check is documented
 in [Testing](docs/testing.md).
 
+The 928 Japanese rules and 1,446 upstream grammar test cases are generated from
+pinned Yomitan sources. Node is only needed to regenerate these checked-in files:
+
+```sh
+node scripts/generate-japanese-deinflection.mjs
+swift test
+```
+
+See [Yomitan provenance and modifications](ThirdParty/Yomitan/README.md).
+
 Regenerate the pixel-art app icon with:
 
 ```sh
 swift scripts/generate-app-icon.swift
 bash scripts/build-app.sh
 ```
+
+## License and acknowledgments
+
+Snipper is licensed under **GPL-3.0-or-later**, without warranty. See [LICENSE](LICENSE).
+The Japanese deinflection rules and native transformer adaptation incorporate
+[Yomitan](https://github.com/yomidevs/yomitan); copyright, pinned revision, and
+modifications are documented in [the third-party notice](ThirdParty/Yomitan/NOTICE.md).
+Settings → About exposes the license and acknowledgments; the app bundle includes
+the GPL license and notice.
+
+When distributing binaries, provide corresponding source for that exact build,
+including modifications, rule sources, and build scripts, or another GPL-compliant
+source provision mechanism. Do not include private dictionary ZIPs, imported
+content, credentials, or user data. User-imported dictionaries retain their own
+licenses and are not covered by Snipper’s license grant.

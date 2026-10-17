@@ -19,7 +19,7 @@ struct DictionaryTerm: Equatable, Sendable {
 
 enum DictionaryError: LocalizedError {
     case invalidArchive, unsafePath, limits, invalidIndex, invalidTerm, invalidTag
-    case unsupportedFormat, duplicate, missingResource, storage, missingDictionary
+    case unsupportedFormat, duplicate, missingResource, storage, missingDictionary, deinflectionRules
 
     var errorDescription: String? {
         switch self {
@@ -34,6 +34,7 @@ enum DictionaryError: LocalizedError {
         case .missingResource: "A definition references a missing or unsupported local image."
         case .storage: "Dictionary storage could not be read or written. Check available disk space and folder permissions."
         case .missingDictionary: "The selected dictionary is no longer available."
+        case .deinflectionRules: "The bundled Japanese deinflection rules could not be loaded. Rebuild or reinstall Snipper."
         }
     }
 }
@@ -167,6 +168,39 @@ final class DictionaryDatabase {
             throw DictionaryError.storage
         }
         return summary
+    }
+
+    /// Batch all derived forms in one indexed query. Filter by the preserved
+    /// Yomitan rule tags before applying the result limit, including dictionaries
+    /// with many identically spelled noun/verb entries.
+    func lookupDeinflected(_ forms: [JapaneseDeinflection], using deinflector: JapaneseDeinflector,
+                           limit: Int) throws -> [(DictionaryTerm, JapaneseDeinflection)] {
+        let grouped = Dictionary(grouping: forms.filter { !$0.reasons.isEmpty }, by: \.text)
+        let words = grouped.keys.sorted()
+        guard !words.isEmpty else { return [] }
+        let values = Array(repeating: "(?)", count: words.count).joined(separator: ",")
+        let statement = try prepare("""
+            WITH candidates(text) AS (VALUES \(values))
+            SELECT headword, reading, definitions_json, sequence, rules FROM terms
+            WHERE headword IN (SELECT text FROM candidates) OR reading IN (SELECT text FROM candidates)
+            ORDER BY score DESC, id
+            """)
+        defer { sqlite3_finalize(statement) }
+        for (index, word) in words.enumerated() { try bind(word, to: statement, at: Int32(index + 1)) }
+        var matches: [(DictionaryTerm, JapaneseDeinflection)] = []
+        while true {
+            try Task.checkCancellation()
+            let status = sqlite3_step(statement)
+            if status == SQLITE_DONE { return matches }
+            guard status == SQLITE_ROW else { throw DictionaryError.storage }
+            func string(_ column: Int32) -> String { String(cString: sqlite3_column_text(statement, column)) }
+            let headword = string(0), reading = string(1), rules = string(4)
+            let candidates = (grouped[headword] ?? []) + (reading == headword ? [] : grouped[reading] ?? [])
+            guard let form = candidates.first(where: { deinflector.matches($0.conditions, dictionaryRules: rules) }) else { continue }
+            matches.append((DictionaryTerm(headword: headword, reading: reading, definitionsJSON: string(2),
+                                           sequence: sqlite3_column_int64(statement, 3)), form))
+            if matches.count >= max(1, min(limit, 100)) { return matches }
+        }
     }
 
     func lookup(_ text: String, limit: Int) throws -> [DictionaryTerm] {

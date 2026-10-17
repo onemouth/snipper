@@ -61,7 +61,12 @@ enum DictionaryLookupText {
             guard first <= last else { continue }
             for start in first...last { add(String(characters[start..<(start + length)]), range: start..<(start + length)) }
         }
-        return results
+        // Prefer a complete inflected word over a shorter tokenizer stem or
+        // incidental exact substring (e.g. 食べなかった before 食べ).
+        return results.enumerated().sorted {
+            if $0.element.text.count != $1.element.text.count { return $0.element.text.count > $1.element.text.count }
+            return $0.offset < $1.offset
+        }.map(\.element)
     }
 
     static func utf16Range(_ range: Range<Int>, in text: String) -> NSRange? {

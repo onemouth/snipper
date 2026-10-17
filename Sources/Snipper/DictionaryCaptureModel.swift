@@ -10,6 +10,11 @@ final class DictionaryCaptureModel: ObservableObject {
     @Published private(set) var status = ""
     @Published private(set) var isRecognizing = false
     @Published private(set) var isSearching = false
+    var baseForms: [String] {
+        var seen = Set<String>()
+        return entries.compactMap { $0.inflection?.base }.filter { seen.insert($0).inserted }
+    }
+
     private var task: Task<Void, Never>?
     private var generation = UUID()
     private let search: @Sendable ([String]) async throws -> DictionaryCandidateMatch?
@@ -84,8 +89,8 @@ final class DictionaryCaptureModel: ObservableObject {
                 self.task = nil
                 guard let match else {
                     self.status = automatic
-                        ? "Click a word in the OCR text to look it up. No exact match for the full selection."
-                        : "No dictionary-form match. Try another word; deinflection is not available yet."
+                        ? "Click a word in the OCR text to look it up. No headword or Japanese base-form match for the full selection."
+                        : "No dictionary-form match after Japanese deinflection. Try another word or a clearer OCR selection."
                     return
                 }
                 self.query = match.query
@@ -98,7 +103,8 @@ final class DictionaryCaptureModel: ObservableObject {
                 guard let self, self.generation == id, !Task.isCancelled else { return }
                 self.isSearching = false
                 self.task = nil
-                self.status = "Dictionary search failed. Check the installed dictionary and retry."
+                self.status = (error as? DictionaryError)?.errorDescription
+                    ?? "Dictionary search failed. Check the installed dictionary and retry."
             }
         }
     }

@@ -284,6 +284,13 @@ struct DictionaryTests {
         #expect(summary.termCount == 92_217)
         #expect(summary.resourceCount == 2_598)
         #expect(!(try await store.lookup("猫", dictionaryID: summary.id)).isEmpty)
+        for (source, base) in [("食べなかった", "食べる"), ("読んでいる", "読む"),
+                               ("行きました", "行く"), ("高かった", "高い")] {
+            let entries = try await store.search(source, dictionaryID: summary.id)
+            let found = entries.contains { $0.inflection?.base == base && $0.term.headword == base }
+            // Only a Boolean is captured by the assertion; never print private definitions.
+            #expect(found)
+        }
         #expect(try await DictionaryStore(root: fixture.root).dictionaries() == [summary])
     }
 }

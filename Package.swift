@@ -7,7 +7,9 @@ let package = Package(
     targets: [
         .systemLibrary(name: "CSQLite"),
         .target(name: "CZipReader", linkerSettings: [.linkedLibrary("archive")]),
-        .executableTarget(name: "Snipper", dependencies: ["CSQLite", "CZipReader"]),
-        .testTarget(name: "SnipperTests", dependencies: ["Snipper"]),
+        .executableTarget(name: "Snipper", dependencies: ["CSQLite", "CZipReader"],
+                          resources: [.copy("Resources/JapaneseDeinflection.json")]),
+        .testTarget(name: "SnipperTests", dependencies: ["Snipper"],
+                    resources: [.copy("Resources/JapaneseDeinflectionTests.json")]),
     ]
 )

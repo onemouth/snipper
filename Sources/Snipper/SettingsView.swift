@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -21,6 +22,8 @@ struct SettingsView: View {
                 .tabItem { Label("Translation", systemImage: "character.bubble") }
             DictionariesView(store: dictionaryStore)
                 .tabItem { Label("Dictionaries", systemImage: "books.vertical") }
+            about
+                .tabItem { Label("About", systemImage: "info.circle") }
         }
         .padding(20)
         .frame(width: 560, height: 490)
@@ -59,7 +62,7 @@ struct SettingsView: View {
             }
             Section("On-screen dictionary") {
                 Text(lookup.status).font(.caption).textSelection(.enabled)
-                Text("Press Control–Option–Z, release the keys, then drag a region with the left mouse button. OCR progress appears in the dictionary panel. A single word is looked up automatically; click words in longer OCR text to look them up. Escape/right-click cancels selection. Import a dictionary first. No deinflection yet.")
+                Text("Press Control–Option–Z, release the keys, then drag a region with the left mouse button. OCR progress appears in the dictionary panel. A single word is looked up automatically; click words in longer OCR text to look them up. Escape/right-click cancels selection. Import a dictionary first. Japanese deinflection is applied locally.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("Capture behavior") {
@@ -67,6 +70,34 @@ struct SettingsView: View {
                     .textSelection(.enabled)
                 Text("Successful OCR copies original text and opens a read-only result panel without activating Snipper. Pin keeps its position. Cloud translation is optional. Original text remains useful if translation fails and translation is copied only on explicit request.")
                     .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var about: some View {
+        Form {
+            Section("Snipper") {
+                Text("Copyright © 2026 Snipper contributors")
+                Text("Free software under the GNU General Public License, version 3 or later. You may modify and redistribute it under those terms.")
+                Text("Distributed WITHOUT ANY WARRANTY, including merchantability or fitness for a particular purpose.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let license = Bundle.main.url(forResource: "LICENSE", withExtension: nil) {
+                    Button("Open License") { NSWorkspace.shared.open(license) }
+                } else {
+                    Link("GNU General Public License v3", destination: URL(string: "https://www.gnu.org/licenses/gpl-3.0.html")!)
+                }
+                Link("Project Source Code", destination: URL(string: "https://github.com/onemouth/snipper")!)
+            }
+            Section("Yomitan acknowledgment") {
+                Text("Japanese deinflection rules and transformer adaptation: Copyright © 2024–2026 Yomitan Authors · GPL-3.0-or-later")
+                Text("Original rule sources, revision, modifications, and regeneration instructions are included in the source distribution.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if let notice = Bundle.main.url(forResource: "Yomitan-NOTICE", withExtension: "md") {
+                    Button("Open Third-Party Notice") { NSWorkspace.shared.open(notice) }
+                }
+                Text("User-imported dictionaries retain their own licenses; no dictionary content is bundled.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

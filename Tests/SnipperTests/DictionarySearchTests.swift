@@ -99,7 +99,7 @@ struct DictionarySearchTests {
         try await waitForSearch(model)
         #expect(model.searchResults.isEmpty)
         #expect(!model.showSearchResults)
-        #expect(model.searchStatus.contains("No exact"))
+        #expect(model.searchStatus.contains("No headword"))
         model.search("猫", dictionaryID: nil)
         model.resetSearch()
         try await Task.sleep(for: .milliseconds(20))

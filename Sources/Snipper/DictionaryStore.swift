@@ -6,11 +6,18 @@ struct DictionaryImportProgress: Sendable {
     let terms: Int
 }
 
+struct DictionaryInflection: Sendable, Hashable {
+    let source: String
+    let base: String
+    let reasons: [String]
+}
+
 struct DictionarySearchEntry: Identifiable, Sendable {
     let id = UUID()
     let dictionary: ImportedDictionary
     let term: DictionaryTerm
     let resources: URL
+    var inflection: DictionaryInflection? = nil
 }
 
 struct DictionaryCandidateMatch: Sendable {
@@ -32,6 +39,7 @@ actor DictionaryStore {
     private let root: URL
     private let limits: DictionaryImportLimits
     private var prepared = false
+    private var japaneseDeinflector: JapaneseDeinflector?
 
     init(root: URL = DictionaryStore.defaultRoot, limits: DictionaryImportLimits = .init()) {
         self.root = root
@@ -101,42 +109,58 @@ actor DictionaryStore {
     func search(_ query: String, dictionaryID: String? = nil, limit: Int = 30) throws -> [DictionarySearchEntry] {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= 256 else { return [] }
+        return try matchCandidates([text], dictionaryID: dictionaryID, limit: limit)?.entries ?? []
+    }
+
+    func searchCandidateMatch(_ candidates: [String]) throws -> DictionaryCandidateMatch? {
+        try matchCandidates(Array(candidates.prefix(80)).filter { !$0.isEmpty && $0.count <= 48 }, limit: 30)
+    }
+
+    private func matchCandidates(_ candidates: [String], dictionaryID: String? = nil,
+                                 limit: Int) throws -> DictionaryCandidateMatch? {
         let installed = try dictionaries()
         if let dictionaryID, !installed.contains(where: { $0.id == dictionaryID }) {
             throw DictionaryError.missingDictionary
         }
+        let selected = installed.filter { dictionaryID == nil || $0.id == dictionaryID }
+        guard !selected.isEmpty else { return nil }
         let maximum = max(1, min(limit, 100))
-        var results: [DictionarySearchEntry] = []
-        for dictionary in installed where dictionaryID == nil || dictionary.id == dictionaryID {
-            try Task.checkCancellation()
-            let matches = try lookup(text, dictionaryID: dictionary.id, limit: maximum - results.count)
-            let resources = root.appendingPathComponent(dictionary.id).appendingPathComponent("resources", isDirectory: true)
-            results += matches.map { DictionarySearchEntry(dictionary: dictionary, term: $0, resources: resources) }
-            if results.count >= maximum { break }
-        }
-        return results
-    }
-
-    func searchCandidateMatch(_ candidates: [String]) throws -> DictionaryCandidateMatch? {
-        let installed = try dictionaries()
-        let databases = try installed.map { dictionary in
+        let databases = try selected.map { dictionary in
             try DictionaryDatabase(url: root.appendingPathComponent(dictionary.id).appendingPathComponent("dictionary.sqlite"), create: false)
         }
-        for candidate in candidates.prefix(80) where !candidate.isEmpty && candidate.count <= 48 {
+        var seen = Set<String>()
+        for candidate in candidates where seen.insert(candidate).inserted {
             try Task.checkCancellation()
             var entries: [DictionarySearchEntry] = []
-            for (index, dictionary) in installed.enumerated() {
-                let terms = try databases[index].lookup(candidate, limit: 30 - entries.count)
+            // An exact headword/reading wins over all derived forms for this span.
+            for (index, dictionary) in selected.enumerated() {
+                let terms = try databases[index].lookup(candidate, limit: maximum - entries.count)
                 let resources = root.appendingPathComponent(dictionary.id).appendingPathComponent("resources")
                 entries += terms.map { DictionarySearchEntry(dictionary: dictionary, term: $0, resources: resources) }
-                if entries.count >= 30 { break }
+                if entries.count >= maximum { break }
+            }
+            if !entries.isEmpty { return DictionaryCandidateMatch(query: candidate, entries: entries) }
+            guard candidate.count <= 48, JapaneseDeinflector.looksJapanese(candidate) else { continue }
+            if japaneseDeinflector == nil { japaneseDeinflector = try JapaneseDeinflector.load() }
+            guard let deinflector = japaneseDeinflector else { throw DictionaryError.deinflectionRules }
+            let forms = try deinflector.deinflect(candidate).filter { !$0.reasons.isEmpty }
+            for (index, dictionary) in selected.enumerated() {
+                try Task.checkCancellation()
+                let matches = try databases[index].lookupDeinflected(forms, using: deinflector, limit: maximum - entries.count)
+                let resources = root.appendingPathComponent(dictionary.id).appendingPathComponent("resources")
+                entries += matches.map { term, form in
+                    DictionarySearchEntry(dictionary: dictionary, term: term, resources: resources,
+                                          inflection: DictionaryInflection(source: candidate, base: form.text,
+                                                                           reasons: deinflector.displayReasons(form.reasons)))
+                }
+                if entries.count >= maximum { break }
             }
             if !entries.isEmpty { return DictionaryCandidateMatch(query: candidate, entries: entries) }
         }
         return nil
     }
 
-    // Exact matching only: no normalization or deinflection yet.
+    // Low-level exact lookup for import validation and format compatibility tests.
     func lookup(_ text: String, dictionaryID: String, limit: Int = 20) throws -> [DictionaryTerm] {
         guard UUID(uuidString: dictionaryID) != nil else { throw DictionaryError.missingDictionary }
         try prepare()

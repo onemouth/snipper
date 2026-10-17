@@ -115,6 +115,10 @@ final class DictionaryDefinitionRenderer {
                 append(entry.term.reading + "\n", font: .systemFont(ofSize: 13), color: .secondaryLabelColor)
             }
             append(entry.term.headword + "\n", font: .systemFont(ofSize: 27, weight: .semibold), color: .controlAccentColor)
+            if let inflection = entry.inflection {
+                append("\(inflection.source) → \(inflection.base)\n", font: .systemFont(ofSize: 13), color: .secondaryLabelColor)
+                append(inflection.reasons.joined(separator: " → ") + "\n", font: .systemFont(ofSize: 11), color: .secondaryLabelColor)
+            }
             append(" " + entry.dictionary.title + " ", font: .systemFont(ofSize: 11, weight: .medium), color: .secondaryLabelColor,
                    background: .quaternaryLabelColor)
             append("\n\n")

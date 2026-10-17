@@ -106,6 +106,10 @@ private struct DictionaryCaptureView: View {
                     Text(query).fontWeight(.semibold).textSelection(.enabled)
                 }
             }
+            if !model.baseForms.isEmpty {
+                Text("Base forms: " + model.baseForms.joined(separator: " / "))
+                    .font(.callout).textSelection(.enabled).lineLimit(2)
+            }
             Text(model.status).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             Divider()
             if model.isRecognizing {
@@ -115,7 +119,7 @@ private struct DictionaryCaptureView: View {
                 DictionaryResultsText(entries: model.entries).frame(maxHeight: .infinity)
             }
             Divider()
-            Text("Local only · No automatic copying or translation · No deinflection yet")
+            Text("Local only · No automatic copying or translation · Japanese deinflection")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(14)

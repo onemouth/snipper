@@ -115,7 +115,9 @@ Import a term dictionary, then use harmless text in a separate app:
   should occur merely because the result appears.
 - Select a single known word: definitions should load automatically. Select a
   sentence or multiple lines: click words in the OCR source to change definitions.
-  Clicking does not recapture the screen. No deinflection is implemented yet.
+  Clicking does not recapture the screen. Try Japanese inflections such as
+  `食べなかった`, `読んでいる`, `行きました`, and `高かった`: verify base forms and
+  explanation chains. The selection must stay on the original inflected text.
 - Check the Lookup label and source selection identify the actual matched word,
   including repeated words, Japanese compounds, and text after emoji/combining marks.
 - Drag over source text to select/copy normally; source text must remain read-only.
@@ -139,11 +141,25 @@ Import a term dictionary, then use harmless text in a separate app:
 - With no dictionary installed, ask for import before selection or Screen Recording.
   Check permission denial, shortcut conflicts, and custom dictionary shortcut persistence.
 
-Automated coverage includes word candidates, exact matched occurrence, UTF-16
-conversion, single-word auto lookup, clickable multiword model state, stale-result
-rejection, safe failures, OCR-to-SQLite matching, and existing capture geometry and
-horizontal/vertical OCR. Native click hit-testing, permissions, focus, and actual
+Automated coverage includes all 1,446 pinned upstream Japanese deinflection cases
+(including invalid cases and exact reason chains), rule-tag filtering before result
+limits, exact-match precedence, ambiguous lemmas, bounded/cancelled expansion,
+word candidates, exact matched occurrence, UTF-16 conversion, single-word auto
+lookup, clickable multiword model state, stale-result rejection, safe failures,
+OCR-to-SQLite matching, and existing capture geometry and horizontal/vertical OCR. Native click hit-testing, permissions, focus, and actual
 game/full-screen behavior still need manual checks.
+
+## Deinflection packaging and licensing
+
+- Check Settings lookup with inflected Japanese; it should match OCR lookup.
+- Reuse an existing import without reimporting. Dictionaries without compatible
+  rule tags must not supply derived results; exact matches still work.
+- Check Settings → About, Open License, and Open Third-Party Notice. App resources
+  must contain `JapaneseDeinflection.json`, `LICENSE`, and `Yomitan-NOTICE.md`.
+- Build and copy the app away from the repository/build directory; verify lookup
+  does not depend on SwiftPM’s absolute build-time resource path.
+- Regenerate data with `node scripts/generate-japanese-deinflection.mjs`; files
+  must be deterministic. Node is not needed for `swift test` or app packaging.
 
 ## Displays and full-screen apps
 

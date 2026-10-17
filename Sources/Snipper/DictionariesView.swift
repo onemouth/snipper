@@ -52,13 +52,14 @@ final class DictionariesModel: ObservableObject {
                 let results = try await store.search(text, dictionaryID: dictionaryID)
                 guard let self, self.searchID == id, !Task.isCancelled else { return }
                 self.searchResults = results
-                self.searchStatus = results.isEmpty ? "No exact headword or reading match. Try the dictionary form; deinflection is not available yet." : "\(results.count) entries (up to 30 shown)."
+                self.searchStatus = results.isEmpty ? "No headword, reading, or Japanese base-form match. Check the OCR spelling and dictionary rule tags." : "\(results.count) entries (up to 30 shown)."
                 self.showSearchResults = !results.isEmpty
                 self.isSearching = false
                 self.searchTask = nil
             } catch {
                 guard let self, self.searchID == id, !Task.isCancelled else { return }
-                self.searchStatus = "Dictionary search failed. Check that the dictionary is still installed."
+                self.searchStatus = (error as? DictionaryError)?.errorDescription
+                    ?? "Dictionary search failed. Check that the dictionary is still installed."
                 self.isSearching = false
                 self.searchTask = nil
             }
@@ -181,7 +182,7 @@ struct DictionariesView: View {
                         }
                     }
                 }
-                Text("Exact headword/reading lookup · Local only · No clipboard changes. Deinflection is not available yet.")
+                Text("Headword/reading lookup + Japanese deinflection · Local only · No clipboard changes.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             .disabled(model.isBusy || model.dictionaries.isEmpty)
